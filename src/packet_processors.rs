@@ -6,12 +6,9 @@ use std::collections::HashMap;
 use crate::BotInfo;
 use crate::login;
 use crate::play;
-use std::sync::Arc;
-use futures_locks::{RwLock, RwLockWriteGuard};
 use futures::io::ErrorKind;
-use std::ops::Deref;
 
-pub type Packet = fn(buffer: &mut Buf, bot: RwLockWriteGuard<BotInfo>);
+pub type Packet = fn(buffer: &mut Buf, bot: &mut BotInfo);
 
 pub struct PacketFramer {}
 
@@ -98,7 +95,7 @@ impl PacketCompressor {
         Some(output)
     }
 
-    pub fn process_write<D: Deref<Target=BotInfo>>(buffer: Buf, bot: Arc<D>) -> Buf {
+    pub fn process_write(buffer: Buf, bot: &BotInfo) -> Buf {
         if buffer.buffer.len() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
             buf.write_var_u32(buffer.buffer.len() as u32);
@@ -116,8 +113,7 @@ impl PacketCompressor {
 }
 
 impl PacketProcessor {
-    pub async fn process_decode(&self, buffer: &mut Buf, bot: Arc<RwLock<BotInfo>>) -> Option<()> {
-        let bot = bot.write().await;
+    pub async fn process_decode(&self, buffer: &mut Buf, bot: &mut BotInfo) -> Option<()> {
         let packet_id = buffer.read_var_u32() as u8;
         (self.packets.get(&bot.state)?.get(&packet_id)?)(buffer, bot);
         Some(())
