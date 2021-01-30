@@ -1,12 +1,11 @@
 use crate::packet_utils::Buf;
-use flate2::write::{ZlibEncoder, ZlibDecoder};
+use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::Write;
 use std::collections::HashMap;
 use crate::BotInfo;
-use crate::login;
-use crate::play;
-use futures::io::ErrorKind;
+use crate::states::login;
+use crate::states::play;
 
 pub type Packet = fn(buffer: &mut Buf, bot: &mut BotInfo);
 
@@ -42,24 +41,6 @@ impl PacketProcessor {
 }
 
 impl PacketFramer {
-    //extra data, not enough data, size
-    pub fn process_read(buffer: &mut Buf) -> (bool, u32, u32) {
-        let size = buffer.read_var_u32();
-        if size == 0 {
-            panic!("empty packet");
-        }
-
-        let length = buffer.buffer.len() as u32 - buffer.get_reader_index();
-        if size != length {
-            return if size > length {
-                (false, size-length, size)
-            } else {
-                (true, 0, size)
-            }
-        }
-        (false, 0, size)
-    }
-
     pub fn process_write(buffer: Buf) -> Buf {
         let size = buffer.buffer.len();
         let header_size = Buf::get_var_u32_size(size as u32);
@@ -74,27 +55,6 @@ impl PacketFramer {
 }
 
 impl PacketCompressor {
-    pub fn process_read(buffer: &mut Buf, length : u32) -> Option<Buf> {
-        let real_length = buffer.read_var_u32();
-        //buffer is not compressed
-        if real_length == 0 {
-            return None;
-        }
-        let mut output = Buf::with_capacity(real_length);
-        {
-            let mut decompressor = ZlibDecoder::new(&mut output.buffer);
-            let r = decompressor.write_all(&buffer.buffer[buffer.get_reader_index() as usize..(length - Buf::get_var_u32_size(real_length) + buffer.get_reader_index()) as usize]);
-            if r.is_err() {
-                match r.as_ref().unwrap_err().kind() {
-                    ErrorKind::WriteZero => (),
-                    _ => r.unwrap()
-                }
-            }
-        }
-        buffer.set_reader_index(buffer.get_reader_index() + length);
-        Some(output)
-    }
-
     pub fn process_write(buffer: Buf, bot: &BotInfo) -> Buf {
         if buffer.buffer.len() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
@@ -114,8 +74,8 @@ impl PacketCompressor {
 
 impl PacketProcessor {
     pub async fn process_decode(&self, buffer: &mut Buf, bot: &mut BotInfo) -> Option<()> {
-        let packet_id = buffer.read_var_u32() as u8;
-        (self.packets.get(&bot.state)?.get(&packet_id)?)(buffer, bot);
+        let packet_id = buffer.read_var_u32();
+        (self.packets.get(&bot.state)?.get(&(packet_id as u8))?)(buffer, bot);
         Some(())
     }
 }

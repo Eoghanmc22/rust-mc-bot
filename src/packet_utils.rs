@@ -1,6 +1,7 @@
 use std::intrinsics::copy_nonoverlapping;
 use std::mem;
 use std::convert::TryInto;
+use rio::{AsIoVecMut, AsIoVec};
 
 pub struct Buf {
     pub buffer: Vec<u8>,
@@ -241,6 +242,28 @@ impl Buf {
         nums
     }
 
+    pub fn read_var_u32_safe(&mut self) -> Option<u32> {
+        let mut num_read = 0u32;
+        let mut result = 0u32;
+        let mut read;
+        loop {
+            if let Some(r) = self.buffer.get(self.read_index as usize) {
+                read = *r as u32;
+            } else {
+                return None;
+            }
+            result |= (read & 0b01111111).overflowing_shl(7 * num_read).0;
+            num_read += 1;
+            if num_read > 5 {
+                panic!("VarInt is too big")
+            }
+            if read & 0b10000000 == 0 {
+                break;
+            }
+        }
+        Some(result)
+    }
+
     pub fn read_var_u32(&mut self) -> u32 {
         let mut num_read = 0u32;
         let mut result = 0u32;
@@ -329,5 +352,38 @@ impl Buf {
         } else {
             5
         }
+    }
+
+    pub unsafe fn offset(&self, offset : u32) -> BufSlice {
+        BufSlice { len: self.buffer.len()-offset as usize, offset: offset as isize, vec : &self.buffer }
+    }
+}
+
+pub struct BufSlice<'a> {
+    len: usize,
+    offset: isize,
+    vec : &'a Vec<u8>
+}
+
+impl AsIoVecMut for BufSlice<'_> {
+
+}
+
+impl AsIoVec for BufSlice<'_> {
+    fn into_new_iovec(&self) -> libc::iovec {
+        libc::iovec {
+            iov_base: unsafe { self.vec.as_ptr().offset(self.offset) } as *mut _,
+            iov_len: self.len
+        }
+    }
+}
+
+impl AsIoVecMut for Buf {
+
+}
+
+impl AsIoVec for Buf {
+    fn into_new_iovec(&self) -> libc::iovec {
+        self.buffer.into_new_iovec()
     }
 }
