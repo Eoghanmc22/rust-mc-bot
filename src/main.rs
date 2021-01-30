@@ -63,8 +63,8 @@ pub async fn spawn_bot(ring: Rio, pool: ThreadPool, addrs: SocketAddr, packet_pr
             packet_processor,
         };
         //login sequence
-        BotInfo::send_packet(&bot, login::write_handshake_packet(754, "".to_string(), 0, 2)).await;
-        BotInfo::send_packet(&bot, login::write_login_start_packet(name)).await;
+        BotInfo::send_packet(bot.clone(), login::write_handshake_packet(754, "".to_string(), 0, 2)).await;
+        BotInfo::send_packet(bot.clone(), login::write_login_start_packet(name)).await;
         loop {
             process_packet(&mut bot).await;
             Sleep::new().await;

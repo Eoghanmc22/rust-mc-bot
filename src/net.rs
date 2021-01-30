@@ -101,16 +101,15 @@ pub struct BotInfo {
 }
 
 impl BotInfo {
-    pub fn send_packet_async(bot_in: &BotInfo, buf: Buf) {
-        let bot = bot_in.clone();
-        let send = BotInfo::send_packet(&bot, buf);
-        bot_in.pool.spawn_ok(send);
+    pub fn send_packet_async(bot: &BotInfo, buf: Buf) {
+        let send = BotInfo::send_packet(bot.clone(), buf);
+        bot.pool.spawn_ok(send);
     }
 
-    pub async fn send_packet(bot: &BotInfo, buf: Buf) {
+    pub async fn send_packet(bot: BotInfo, buf: Buf) {
         let mut packet = buf;
         if bot.compression_threshold > 0 {
-            packet = packet_processors::PacketCompressor::process_write(packet, bot);
+            packet = packet_processors::PacketCompressor::process_write(packet, &bot);
         }
         packet = packet_processors::PacketFramer::process_write(packet);
         let mut written = 0;
