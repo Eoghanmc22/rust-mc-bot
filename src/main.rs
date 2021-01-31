@@ -2,48 +2,50 @@ mod packet_utils;
 mod packet_processors;
 mod net;
 mod states;
+mod sleep;
 
-use std::{net::{TcpStream, ToSocketAddrs}, thread::park};
+use std::{net::{TcpStream, ToSocketAddrs}, thread::park, env};
 use std::io;
-use futures::executor::ThreadPool;
 use std::net::SocketAddr;
 use rio::Rio;
 use crate::packet_processors::PacketProcessor;
-use std::sync::{Arc, Mutex};
-use futures::Future;
-use futures::task::{Context, Poll, Waker};
-use std::pin::Pin;
-use std::time::{Duration};
-use std::{thread};
-use crate::net::{BotInfo, process_packet};
+use std::sync::{Arc};
+use crate::net::{BotInfo};
 use crate::states::login;
-
-static mut WAITING: Option<Mutex<Vec<Sleep>>> = None;
+use crate::sleep::Sleep;
+use rusty_pool::ThreadPool;
+use std::time::Duration;
 
 fn main() -> io::Result<()> {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() != 4 {
+        let name = args.get(0).unwrap();
+        println!("usage: {} <ip:port> <count> <update time>", name);
+        println!("example: {} localhost:25565 500 4", name);
+        println!("update time is how long to wait between updating bots.");
+        println!("updating bots is done concurrently and this is a bad design but it works");
+        return Ok(());
+    }
+
+    let arg1 = args.get(1).unwrap();
+    let arg2 = args.get(2).unwrap();
+    let arg3 = args.get(3).unwrap();
+
+    let addrs = arg1.to_socket_addrs().expect(&format!("{} is not a ip", arg1)).nth(0).expect(&format!("{} is not a ip", arg1));
+    let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
+    let millis: u64 = arg3.parse().expect(&format!("{} is not a number", arg3));
+    let cpus = 1.max(num_cpus::get()) as u32;
+
     let ring = rio::new()?;
-    let addrs = "localhost:25566".to_socket_addrs().unwrap().nth(0).unwrap();
-    let thread_pool = ThreadPool::new().unwrap();
+    let pool = ThreadPool::new(cpus, cpus, Duration::from_secs(1));
     let packet_processor = Arc::new(PacketProcessor::new());
 
-    thread::spawn(|| unsafe {
-        loop {
-            if WAITING.is_none() {
-                WAITING = Some(Mutex::new(Vec::new()));
-            }
-            let mutex = WAITING.as_ref().unwrap();
-            let mut guard = mutex.lock().unwrap();
-            for s in guard.iter_mut() {
-                s.waker.as_ref().unwrap().clone().wake();
-                thread::sleep(Duration::from_millis(4));
-            }
-            guard.clear();
-            drop(guard);
-        }
-    });
+    sleep::start(pool.clone(), millis);
 
-    for i in 0..500 {
-        thread_pool.spawn_ok(spawn_bot(ring.clone(), thread_pool.clone(), addrs.clone(), packet_processor.clone(), format!("test{}", i).to_string()));
+    for i in 0..count {
+        println!("spawning bot: {}", i);
+        pool.spawn(spawn_bot(ring.clone(), pool.clone(), addrs.clone(), packet_processor.clone(), format!("test{}", i).to_string()));
     }
 
     loop {
@@ -52,57 +54,20 @@ fn main() -> io::Result<()> {
 }
 
 pub async fn spawn_bot(ring: Rio, pool: ThreadPool, addrs: SocketAddr, packet_processor: Arc<PacketProcessor>, name: String) {
-    let pool_temp = pool.clone();
-    let bot_task = async move {
-        let mut bot = BotInfo {
-            ring,
-            pool,
-            channel: Arc::new(TcpStream::connect(addrs).unwrap()),
-            compression_threshold: 0,
-            state: 0,
-            packet_processor,
-        };
-        //login sequence
-        BotInfo::send_packet(bot.clone(), login::write_handshake_packet(754, "".to_string(), 0, 2)).await;
-        BotInfo::send_packet(bot.clone(), login::write_login_start_packet(name)).await;
-        loop {
-            process_packet(&mut bot).await;
-            Sleep::new().await;
-        }
+    let mut bot = BotInfo {
+        ring,
+        pool,
+        channel: Arc::new(TcpStream::connect(addrs).unwrap()),
+        compression_threshold: 0,
+        state: 0,
+        packet_processor,
     };
-    pool_temp.spawn_ok(bot_task);
-}
-
-#[derive(Clone)]
-pub struct Sleep {
-    done: bool,
-    waker: Option<Waker>,
-}
-
-impl Sleep {
-    pub fn new() -> Sleep {
-        Sleep { done: false, waker: None }
-    }
-}
-
-impl Future for Sleep {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.done {
-            Poll::Ready(())
-        } else {
-            self.as_mut().waker = Some(cx.waker().clone());
-            unsafe {
-                if WAITING.is_none() {
-                    WAITING = Some(Mutex::new(Vec::new()));
-                }
-                let mutex = WAITING.as_ref().unwrap();
-                let mut guard = mutex.lock().unwrap();
-                guard.push(self.clone());
-                self.done = true;
-            }
-            Poll::Pending
-        }
+    //login sequence
+    BotInfo::send_packet(bot.clone(), login::write_handshake_packet(754, "".to_string(), 0, 2)).await;
+    BotInfo::send_packet(bot.clone(), login::write_login_start_packet(&name)).await;
+    println!("bot \"{}\" joined", &name);
+    loop {
+        net::process_packet(&mut bot).await;
+        Sleep::new().await;
     }
 }

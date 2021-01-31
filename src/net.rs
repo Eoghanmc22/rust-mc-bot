@@ -2,11 +2,11 @@ use rio::{AsIoVec, AsIoVecMut, Rio};
 use crate::packet_utils::Buf;
 use flate2::write::ZlibDecoder;
 use std::io::Write;
-use futures::executor::ThreadPool;
 use std::sync::Arc;
 use std::net::TcpStream;
 use crate::packet_processors::PacketProcessor;
 use crate::packet_processors;
+use rusty_pool::ThreadPool;
 
 pub async fn read_socket<P>(bot: &BotInfo, packet: &P) -> usize
     where P: AsIoVec + AsIoVecMut
@@ -16,11 +16,12 @@ pub async fn read_socket<P>(bot: &BotInfo, packet: &P) -> usize
 
 pub async fn read_needed(bot: &BotInfo, packet: &mut Buf, needed: usize) -> usize {
     packet.buffer.reserve(needed);
-    unsafe { packet.buffer.set_len(packet.buffer.len() + needed); }
-
     let mut received = 0;
-    while received >= needed {
-        unsafe { received += read_socket(bot, &packet.offset(received as u32)).await; }
+    let len = packet.buffer.len();
+    unsafe { packet.buffer.set_len(len + needed); }
+
+    while received < needed {
+        unsafe { received += read_socket(bot, &packet.offset((len + received) as u32)).await; }
     }
     received
 }
@@ -39,9 +40,9 @@ pub async fn process_packet(bot: &mut BotInfo) {
     unsafe { packet.buffer.set_len(received); }
     let mut next = 0;
 
-    // process all of the Minecraft packets received
+    //process all of the Minecraft packets received
     loop {
-        //handle packet that only has part of the size field
+        //handle packet that have an incomplete size field
         if packet.buffer.len() as u32 - next < 3 {
             let needed = 3 - (packet.buffer.len() as u32 - next) as usize;
 
@@ -59,8 +60,8 @@ pub async fn process_packet(bot: &mut BotInfo) {
             received += read_needed(&bot, &mut packet, needed).await;
         }
 
-        //decompress id needed
-        if bot.compression_threshold != 0 {
+        //decompress if needed and parse the packet
+        if bot.compression_threshold > 0 {
             let real_length = packet.read_var_u32();
 
             //buffer is compressed
@@ -72,15 +73,17 @@ pub async fn process_packet(bot: &mut BotInfo) {
                     decompressor.write_all(
                         &packet.buffer[packet.get_reader_index() as usize
                             ..
-                            packet.get_reader_index() as usize
-                                + size - Buf::get_var_u32_size(real_length) as usize]).unwrap();
+                            (packet.get_reader_index() as usize
+                                + size - Buf::get_var_u32_size(real_length) as usize)]).unwrap();
                 }
-                packet = output;
-            }
-        }
 
-        //parse packet
-        packet_processor.process_decode(&mut packet, bot).await;
+                packet_processor.process_decode(&mut output, bot).await;
+            } else {
+                packet_processor.process_decode(&mut packet, bot).await;
+            }
+        } else {
+            packet_processor.process_decode(&mut packet, bot).await;
+        }
 
         //prepare for next packet and exit condition
         packet.set_reader_index(next);
@@ -103,7 +106,7 @@ pub struct BotInfo {
 impl BotInfo {
     pub fn send_packet_async(bot: &BotInfo, buf: Buf) {
         let send = BotInfo::send_packet(bot.clone(), buf);
-        bot.pool.spawn_ok(send);
+        bot.pool.spawn(send);
     }
 
     pub async fn send_packet(bot: BotInfo, buf: Buf) {
