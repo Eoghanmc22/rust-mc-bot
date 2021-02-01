@@ -32,7 +32,7 @@ impl PacketProcessor {
 
         let mut play: HashMap<u8, Packet> = HashMap::new();
 
-        play.insert(0x1f, play::process_keep_alive_packet);
+        play.insert(0x1F, play::process_keep_alive_packet);
 
         map.insert(1, play);
 
@@ -42,31 +42,31 @@ impl PacketProcessor {
 
 impl PacketFramer {
     pub fn process_write(buffer: Buf) -> Buf {
-        let size = buffer.buffer.len();
+        let size = buffer.get_writer_index();
         let header_size = Buf::get_var_u32_size(size as u32);
         if header_size > 3 {
             panic!("header_size > 3")
         }
         let mut target = Buf::with_length(size as u32 + header_size);
         target.write_var_u32(size as u32);
-        target.append(buffer);
+        target.append(&buffer, buffer.get_writer_index() as usize);
         target
     }
 }
 
 impl PacketCompressor {
     pub fn process_write(buffer: Buf, bot: &BotInfo) -> Buf {
-        if buffer.buffer.len() as i32 > bot.compression_threshold {
+        if buffer.get_writer_index() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
-            buf.write_var_u32(buffer.buffer.len() as u32);
-            let mut compressor = ZlibEncoder::new(&mut buf.buffer, Compression::fast());
-            compressor.write_all(&buffer.buffer[buffer.get_writer_index() as usize..]).unwrap();
+            buf.write_var_u32(buffer.get_writer_index());
+            let mut compressor = ZlibEncoder::new(&mut buf, Compression::fast());
+            compressor.write_all(&buffer.buffer[0..buffer.get_writer_index() as usize]).unwrap();
             compressor.flush_finish().unwrap();
             buf
         } else {
             let mut buf = Buf::new();
             buf.write_var_u32(0);
-            buf.append(buffer);
+            buf.append(&buffer, buffer.get_writer_index() as usize);
             buf
         }
     }

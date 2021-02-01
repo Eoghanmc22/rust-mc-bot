@@ -21,13 +21,14 @@ pub fn start(pool : ThreadPool, millis : u64) {
             let mut guard = mutex.lock().unwrap();
             for s in guard.iter_mut() {
                 let waker = s.waker.as_ref().unwrap().clone();
-                pool.execute(move || {
+                pool.evaluate(move || {
                     waker.wake();
                 });
-                thread::sleep(Duration::from_millis(millis));
             }
+            thread::sleep(Duration::from_millis(millis));
             guard.clear();
             drop(guard);
+            pool.join();
         }
     });
 }

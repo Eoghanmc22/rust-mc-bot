@@ -6,7 +6,7 @@ pub fn write_handshake_packet(protocol_version: u32,
                           server_address: String,
                           server_port: u16,
                           next_state: u32) -> Buf {
-    let mut buf = Buf::with_length((1 + 2 + server_address.len() + 2 + 1) as u32);
+    let mut buf = Buf::with_length((1 + 4 + server_address.len() + 2 + 4) as u32);
     buf.write_packet_id(0);
 
     buf.write_var_u32(protocol_version);

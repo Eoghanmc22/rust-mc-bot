@@ -26,14 +26,11 @@ pub async fn read_needed(bot: &BotInfo, packet: &mut Buf, needed: usize) -> usiz
     received
 }
 
-pub async fn process_packet(bot: &mut BotInfo) {
+pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
     let packet_processor = bot.packet_processor.clone();
 
-    //allocate buffer
-    let mut packet = Buf::with_length(512);
-
     //read new packets
-    let mut received = read_socket(bot, &packet).await;
+    let mut received = read_socket(bot, packet).await;
     if received == 0 {
         return;
     }
@@ -46,7 +43,7 @@ pub async fn process_packet(bot: &mut BotInfo) {
         if packet.buffer.len() as u32 - next < 3 {
             let needed = 3 - (packet.buffer.len() as u32 - next) as usize;
 
-            received += read_needed(&bot, &mut packet, needed).await;
+            received += read_needed(&bot, packet, needed).await;
         }
 
         //read packet size
@@ -57,7 +54,7 @@ pub async fn process_packet(bot: &mut BotInfo) {
         if received < size + packet.get_reader_index() as usize {
             let needed = size + packet.get_reader_index() as usize - received;
 
-            received += read_needed(&bot, &mut packet, needed).await;
+            received += read_needed(&bot, packet, needed).await;
         }
 
         //decompress if needed and parse the packet
@@ -69,7 +66,7 @@ pub async fn process_packet(bot: &mut BotInfo) {
                 let mut output = Buf::with_capacity(real_length);
                 {
                     //decompress
-                    let mut decompressor = ZlibDecoder::new(&mut output.buffer);
+                    let mut decompressor = ZlibDecoder::new(&mut output);
                     decompressor.write_all(
                         &packet.buffer[packet.get_reader_index() as usize
                             ..
@@ -79,10 +76,10 @@ pub async fn process_packet(bot: &mut BotInfo) {
 
                 packet_processor.process_decode(&mut output, bot).await;
             } else {
-                packet_processor.process_decode(&mut packet, bot).await;
+                packet_processor.process_decode(packet, bot).await;
             }
         } else {
-            packet_processor.process_decode(&mut packet, bot).await;
+            packet_processor.process_decode(packet, bot).await;
         }
 
         //prepare for next packet and exit condition
@@ -91,6 +88,7 @@ pub async fn process_packet(bot: &mut BotInfo) {
             break;
         }
     }
+    packet.set_reader_index(0);
 }
 
 #[derive(Clone)]
@@ -116,7 +114,7 @@ impl BotInfo {
         }
         packet = packet_processors::PacketFramer::process_write(packet);
         let mut written = 0;
-        let len = packet.buffer.len();
+        let len = packet.get_writer_index() as usize;
         while written < len {
             unsafe { written += bot.ring.write_at(&*bot.channel, &packet.offset(written as u32), 0).await.unwrap(); }
         }

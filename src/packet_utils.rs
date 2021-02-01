@@ -1,7 +1,8 @@
 use std::intrinsics::copy_nonoverlapping;
-use std::mem;
+use std::{mem, io};
 use std::convert::TryInto;
 use rio::{AsIoVecMut, AsIoVec};
+use std::io::Write;
 
 pub struct Buf {
     pub buffer: Vec<u8>,
@@ -41,22 +42,25 @@ impl Buf {
 
     pub unsafe fn mem_cpy(&mut self, other: *const u8, start: u32, len: usize) {
         let dst = &mut self.buffer;
-        let extra = (len as u32 + self.write_index) as i32 - dst.len() as i32;
-        if extra > 0 { dst.reserve(extra as usize); }
+        let needed_len = (self.write_index + len as u32 - start) as i32;
+
+        let extra_len = needed_len - dst.len() as i32;
+
+        if extra_len > 0 { dst.reserve(extra_len as usize); }
         let dst_ptr = dst.as_mut_ptr().offset(self.write_index as isize);
         let src_ptr = other.offset(start as isize);
-        if Self::is_nonoverlapping(src_ptr, dst_ptr, len as usize) {
-            copy_nonoverlapping(src_ptr, dst_ptr, len as usize);
+        if Self::is_nonoverlapping(src_ptr, dst_ptr, len - start as usize) {
+            copy_nonoverlapping(src_ptr, dst_ptr, len - start as usize);
         } else {
             panic!("copy is overlapping")
         }
 
-        if extra > 0 { dst.set_len(dst.len() + extra as usize); }
+        if extra_len > 0 { dst.set_len(needed_len as usize); }
         self.write_index += len as u32;
     }
 
-    pub fn append(&mut self, other: Buf) {
-        self.write_bytes(other.buffer.as_slice());
+    pub fn append(&mut self, other: &Buf, len : usize) {
+        self.write_bytes(&other.buffer[0..len]);
     }
 
     pub fn ensure_writable(&mut self, num: u32) {
@@ -385,5 +389,16 @@ impl AsIoVecMut for Buf {
 impl AsIoVec for Buf {
     fn into_new_iovec(&self) -> libc::iovec {
         self.buffer.into_new_iovec()
+    }
+}
+
+impl Write for Buf {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.write_bytes(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
