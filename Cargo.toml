@@ -1,0 +1,19 @@
+[package]
+name = "rust-mc-bot"
+version = "0.1.0"
+authors = ["Eoghanmc22 <eoghanmc@icloud.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.release]
+# debug = 2
+
+[dependencies]
+rio = "0.9.4"
+flate2 = { version = "1.0.19", features = ["zlib"], default-features = false }
+futures = { version = "0.3.8", features = ["thread-pool"] }
+libc = "0.2.81"
+rusty_pool = "0.5.0"
+num_cpus = "1.13.0"
+rand = "0.8.3"
