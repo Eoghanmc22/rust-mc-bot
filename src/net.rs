@@ -14,21 +14,23 @@ pub async fn read_socket<P>(bot: &BotInfo, packet: &P) -> usize
     bot.ring.read_at(&*bot.channel, packet, 0).await.unwrap()
 }
 
-pub async fn read_needed(bot: &BotInfo, packet: &mut Buf, needed: usize, current_received : usize) -> usize {
-    if current_received + packet.get_reader_index() as usize + needed > packet.buffer.len() {
-        packet.buffer.reserve(needed);
+pub async fn read_needed(bot: &BotInfo, packet: &mut Buf, needed: usize, offset : usize) -> usize {
+    if offset + needed > packet.buffer.len() {
+        let c_needed = packet.buffer.len() - offset + needed;
+        packet.buffer.reserve(c_needed);
         let len = packet.buffer.len();
-        unsafe { packet.buffer.set_len(len + needed); }
+        unsafe { packet.buffer.set_len(len + c_needed); }
     }
 
     let mut received = 0;
     while received < needed {
-        unsafe { received += read_socket(bot, &packet.offset(packet.get_reader_index() + received as u32)).await; }
+        unsafe { received += read_socket(bot, &packet.offset(offset as u32)).await; }
     }
     received
 }
 
 pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
+    packet.set_reader_index(0);
     let packet_processor = bot.packet_processor.clone();
 
     //read new packets
@@ -41,7 +43,7 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
         if received == len {
             packet.buffer.reserve(len);
             unsafe { packet.buffer.set_len(len * 2); }
-            println!("new buf size: {}", packet.buffer.len())
+            //println!("new buf size: {}", packet.buffer.len())
         }
     }
     let mut next = 0;
@@ -58,8 +60,6 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
         //read packet size
         let size = packet.read_var_u32() as usize;
         next += size as u32 + Buf::get_var_u32_size(size as u32);
-
-        println!("{}", size);
 
         //handle incomplete packet
         if received < size + packet.get_reader_index() as usize {
@@ -92,6 +92,9 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
         } else {
             packet_processor.process_decode(packet, bot).await;
         }
+        if bot.kicked {
+            break;
+        }
 
         //prepare for next packet and exit condition
         packet.set_reader_index(next);
@@ -99,7 +102,6 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
             break;
         }
     }
-    packet.set_reader_index(0);
 }
 
 #[derive(Clone)]
@@ -110,6 +112,7 @@ pub struct BotInfo {
     pub compression_threshold: i32,
     pub state: u8,
     pub packet_processor: Arc<PacketProcessor>,
+    pub kicked : bool
 }
 
 impl BotInfo {
@@ -119,6 +122,9 @@ impl BotInfo {
     }
 
     pub async fn send_packet(bot: BotInfo, buf: Buf) {
+        if bot.kicked {
+            return;
+        }
         let mut packet = buf;
         if bot.compression_threshold > 0 {
             packet = packet_processors::PacketCompressor::process_write(packet, &bot);

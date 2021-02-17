@@ -52,7 +52,7 @@ fn main() -> io::Result<()> {
         pool.spawn(spawn_bot(ring.clone(), pool.clone(), addrs.clone(), packet_processor.clone(), format!("test{}", i).to_string()));
     }
     loop {
-        park();
+        pool.join();
     }
 }
 
@@ -64,6 +64,7 @@ pub async fn spawn_bot(ring: Rio, pool: ThreadPool, addrs: SocketAddr, packet_pr
         compression_threshold: 0,
         state: 0,
         packet_processor,
+        kicked: false
     };
     //login sequence
     BotInfo::send_packet(bot.clone(), login::write_handshake_packet(754, "".to_string(), 0, 2)).await;
@@ -74,7 +75,7 @@ pub async fn spawn_bot(ring: Rio, pool: ThreadPool, addrs: SocketAddr, packet_pr
     let mut z : f64 = 0.0;
 
     //allocate buffer
-    let mut packet = Buf::with_length(1024);
+    let mut packet = Buf::with_length(100000);
 
     loop {
         if SHOULD_MOVE {
@@ -86,6 +87,9 @@ pub async fn spawn_bot(ring: Rio, pool: ThreadPool, addrs: SocketAddr, packet_pr
             }
         }
         net::process_packet(&mut bot, &mut packet).await;
+        if bot.kicked {
+            break;
+        }
         Sleep::new().await;
     }
 }

@@ -25,7 +25,9 @@ pub fn start(pool : ThreadPool, millis : u64) {
                     waker.wake();
                 });
             }
-            thread::sleep(Duration::from_millis(millis));
+            if millis > 0 {
+                thread::sleep(Duration::from_millis(millis));
+            }
             guard.clear();
             drop(guard);
             pool.join();

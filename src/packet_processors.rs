@@ -33,6 +33,7 @@ impl PacketProcessor {
         let mut play: HashMap<u8, Packet> = HashMap::new();
 
         play.insert(0x1F, play::process_keep_alive_packet);
+        play.insert(0x19, play::process_kick);
 
         map.insert(1, play);
 
