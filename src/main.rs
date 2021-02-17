@@ -9,8 +9,8 @@ use std::io;
 use std::net::SocketAddr;
 use rio::Rio;
 use crate::packet_processors::PacketProcessor;
-use std::sync::{Arc};
-use crate::net::{BotInfo};
+use std::sync::Arc;
+use crate::net::BotInfo;
 use crate::states::{login, play};
 use crate::sleep::Sleep;
 use rusty_pool::ThreadPool;
@@ -74,7 +74,7 @@ pub async fn spawn_bot(ring: Rio, pool: ThreadPool, addrs: SocketAddr, packet_pr
     let mut z : f64 = 0.0;
 
     //allocate buffer
-    let mut packet = Buf::with_length(2048);
+    let mut packet = Buf::with_length(1024);
 
     loop {
         if SHOULD_MOVE {

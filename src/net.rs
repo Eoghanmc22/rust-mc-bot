@@ -14,14 +14,16 @@ pub async fn read_socket<P>(bot: &BotInfo, packet: &P) -> usize
     bot.ring.read_at(&*bot.channel, packet, 0).await.unwrap()
 }
 
-pub async fn read_needed(bot: &BotInfo, packet: &mut Buf, needed: usize) -> usize {
-    packet.buffer.reserve(needed);
-    let mut received = 0;
-    let len = packet.buffer.len();
-    unsafe { packet.buffer.set_len(len + needed); }
+pub async fn read_needed(bot: &BotInfo, packet: &mut Buf, needed: usize, current_received : usize) -> usize {
+    if current_received + packet.get_reader_index() as usize + needed > packet.buffer.len() {
+        packet.buffer.reserve(needed);
+        let len = packet.buffer.len();
+        unsafe { packet.buffer.set_len(len + needed); }
+    }
 
+    let mut received = 0;
     while received < needed {
-        unsafe { received += read_socket(bot, &packet.offset((len + received) as u32)).await; }
+        unsafe { received += read_socket(bot, &packet.offset(packet.get_reader_index() + received as u32)).await; }
     }
     received
 }
@@ -34,27 +36,36 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
     if received == 0 {
         return;
     }
-    unsafe { packet.buffer.set_len(received); }
+    {
+        let len = packet.buffer.len();
+        if received == len {
+            packet.buffer.reserve(len);
+            unsafe { packet.buffer.set_len(len * 2); }
+            println!("new buf size: {}", packet.buffer.len())
+        }
+    }
     let mut next = 0;
 
     //process all of the Minecraft packets received
     loop {
         //handle packet that have an incomplete size field
-        if packet.buffer.len() as u32 - next < 3 {
-            let needed = 3 - (packet.buffer.len() as u32 - next) as usize;
+        if received as u32 - next < 3 {
+            let needed = 3 - (received as u32 - next) as usize;
 
-            received += read_needed(&bot, packet, needed).await;
+            received += read_needed(&bot, packet, needed, received).await;
         }
 
         //read packet size
         let size = packet.read_var_u32() as usize;
         next += size as u32 + Buf::get_var_u32_size(size as u32);
 
+        println!("{}", size);
+
         //handle incomplete packet
         if received < size + packet.get_reader_index() as usize {
             let needed = size + packet.get_reader_index() as usize - received;
 
-            received += read_needed(&bot, packet, needed).await;
+            received += read_needed(&bot, packet, needed, received).await;
         }
 
         //decompress if needed and parse the packet
@@ -84,7 +95,7 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
 
         //prepare for next packet and exit condition
         packet.set_reader_index(next);
-        if packet.get_reader_index() >= packet.buffer.len() as u32 {
+        if packet.get_reader_index() >= received as u32 {
             break;
         }
     }
