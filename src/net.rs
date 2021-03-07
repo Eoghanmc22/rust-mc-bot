@@ -112,7 +112,11 @@ pub struct BotInfo {
     pub compression_threshold: i32,
     pub state: u8,
     pub packet_processor: Arc<PacketProcessor>,
-    pub kicked : bool
+    pub kicked : bool,
+    pub teleported : bool,
+    pub x : f64,
+    pub y : f64,
+    pub z : f64,
 }
 
 impl BotInfo {
