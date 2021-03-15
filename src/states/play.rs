@@ -10,6 +10,10 @@ pub fn process_kick(buffer : &mut Buf, bot : &mut BotInfo) {
     bot.kicked = true;
 }
 
+pub fn process_join_game(_buffer : &mut Buf, bot : &mut BotInfo) {
+    BotInfo::send_packet_async(bot, crate::play::write_client_settings());
+}
+
 pub fn process_teleport(buffer : &mut Buf, bot : &mut BotInfo) {
     let x = buffer.read_f64();
     let y = buffer.read_f64();
@@ -69,5 +73,21 @@ pub fn write_pos(x : f64, y : f64, z : f64, yaw : f32, pitch : f32) -> Buf {
 
     buf.write_bool(false);
     
+    buf
+}
+
+const VIEW_DISTANCE: u8 = 10u8;
+
+pub fn write_client_settings() -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x05);
+
+    buf.write_sized_str("en_US");
+    buf.write_u8(VIEW_DISTANCE);
+    buf.write_var_u32(0);
+    buf.write_bool(true);
+    buf.write_u8(0xFF);
+    buf.write_var_u32(0);
+
     buf
 }

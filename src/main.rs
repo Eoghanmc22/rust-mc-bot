@@ -47,9 +47,12 @@ fn main() -> io::Result<()> {
 
     sleep::start(pool.clone(), millis);
 
+    let dur = Duration::from_millis(10);
+
     for i in 0..count {
         println!("spawning bot: {}", i);
         pool.spawn(spawn_bot(ring.clone(), pool.clone(), addrs.clone(), packet_processor.clone(), format!("test{}", i).to_string()));
+        std::thread::sleep(dur);
     }
     loop {
         pool.join();
