@@ -226,7 +226,7 @@ impl Buf {
     }
 
     pub fn read_sized_string(&mut self) -> &str {
-        let length = self.read_var_u32();
+        let length = self.read_var_u32().0;
         let bytes = self.read_bytes(length);
         std::str::from_utf8(bytes).expect("Error occurred while parsing string")
     }
@@ -238,43 +238,21 @@ impl Buf {
     }
 
     pub fn read_var_u32_slice(&mut self) -> Vec<u32> {
-        let length = self.read_var_u32();
+        let length = self.read_var_u32().0;
         let mut nums: Vec<u32> = Vec::with_capacity(length as usize);
         for _ in 0..length {
-            nums.push(self.read_var_u32());
+            nums.push(self.read_var_u32().0);
         }
         nums
     }
 
-    pub fn read_var_u32_safe(&mut self) -> Option<u32> {
-        let mut num_read = 0u32;
-        let mut result = 0u32;
-        let mut read;
-        loop {
-            if let Some(r) = self.buffer.get(self.read_index as usize) {
-                read = *r as u32;
-            } else {
-                return None;
-            }
-            result |= (read & 0b01111111).overflowing_shl(7 * num_read).0;
-            num_read += 1;
-            if num_read > 5 {
-                panic!("VarInt is too big")
-            }
-            if read & 0b10000000 == 0 {
-                break;
-            }
-        }
-        Some(result)
-    }
-
-    pub fn read_var_u32(&mut self) -> u32 {
+    pub fn read_var_u32(&mut self) -> (u32, u32) {
         let mut num_read = 0u32;
         let mut result = 0u32;
         let mut read;
         loop {
             read = self.read_byte() as u32;
-            result |= (read & 0b01111111).overflowing_shl(7 * num_read).0;
+            result |= (read & 0b01111111) << (7 * num_read);
             num_read += 1;
             if num_read > 5 {
                 panic!("VarInt is too big")
@@ -283,10 +261,10 @@ impl Buf {
                 break;
             }
         }
-        result
+        (result, num_read)
     }
 
-    pub fn read_var_u64(&mut self) -> u64 {
+    pub fn read_var_u64(&mut self) -> (u64, u64) {
         let mut num_read = 0u64;
         let mut result = 0u64;
         let mut read;
@@ -301,7 +279,7 @@ impl Buf {
                 break;
             }
         }
-        result
+        (result, num_read)
     }
 
     pub fn read_block_position(&mut self) -> (i32, u8, i32) {

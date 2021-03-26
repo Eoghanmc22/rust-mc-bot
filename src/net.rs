@@ -58,8 +58,9 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
         }
 
         //read packet size
-        let size = packet.read_var_u32() as usize;
-        next += size as u32 + Buf::get_var_u32_size(size as u32);
+        let tuple = packet.read_var_u32();
+        let size = tuple.0 as usize;
+        next += tuple.0 + tuple.1;
 
         //handle incomplete packet
         if received < size + packet.get_reader_index() as usize {
@@ -70,7 +71,8 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
 
         //decompress if needed and parse the packet
         if bot.compression_threshold > 0 {
-            let real_length = packet.read_var_u32();
+            let real_length_tuple = packet.read_var_u32();
+            let real_length = real_length_tuple.0;
 
             //buffer is compressed
             if real_length != 0 {
@@ -82,7 +84,7 @@ pub async fn process_packet(bot: &mut BotInfo, packet : &mut Buf) {
                         &packet.buffer[packet.get_reader_index() as usize
                             ..
                             (packet.get_reader_index() as usize
-                                + size - Buf::get_var_u32_size(real_length) as usize)]).unwrap();
+                                + size -real_length_tuple.1 as usize)]).unwrap();
                 }
 
                 packet_processor.process_decode(&mut output, bot).await;

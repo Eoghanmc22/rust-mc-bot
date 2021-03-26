@@ -36,7 +36,7 @@ pub fn process_teleport(buffer : &mut Buf, bot : &mut BotInfo) {
     } else {
         bot.z += z;
     }
-    BotInfo::send_packet_async(bot, write_tele_confirm(buffer.read_var_u32()));
+    BotInfo::send_packet_async(bot, write_tele_confirm(buffer.read_var_u32().0));
     bot.teleported = true;
 }
 

@@ -35,5 +35,5 @@ pub fn process_login_success_packet(buffer : &mut Buf, mut bot : &mut BotInfo) {
 
 //0x03
 pub fn process_set_compression_packet(buf : &mut Buf, mut bot : &mut BotInfo) {
-    bot.compression_threshold = buf.read_var_u32() as i32;
+    bot.compression_threshold = buf.read_var_u32().0 as i32;
 }

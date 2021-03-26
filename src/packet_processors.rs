@@ -77,7 +77,7 @@ impl PacketCompressor {
 
 impl PacketProcessor {
     pub async fn process_decode(&self, buffer: &mut Buf, bot: &mut BotInfo) -> Option<()> {
-        let packet_id = buffer.read_var_u32();
+        let packet_id = buffer.read_var_u32().0;
         (self.packets.get(&bot.state)?.get(&(packet_id as u8))?)(buffer, bot);
         Some(())
     }
