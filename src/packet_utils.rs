@@ -1,7 +1,6 @@
 use std::intrinsics::copy_nonoverlapping;
 use std::{mem, io};
 use std::convert::TryInto;
-use rio::{AsIoVecMut, AsIoVec};
 use std::io::Write;
 
 pub struct Buf {
@@ -334,39 +333,6 @@ impl Buf {
         } else {
             5
         }
-    }
-
-    pub unsafe fn offset(&self, offset : u32) -> BufSlice {
-        BufSlice { len: self.buffer.len()-offset as usize, offset: offset as isize, vec : &self.buffer }
-    }
-}
-
-pub struct BufSlice<'a> {
-    len: usize,
-    offset: isize,
-    vec : &'a Vec<u8>
-}
-
-impl AsIoVecMut for BufSlice<'_> {
-
-}
-
-impl AsIoVec for BufSlice<'_> {
-    fn into_new_iovec(&self) -> libc::iovec {
-        libc::iovec {
-            iov_base: unsafe { self.vec.as_ptr().offset(self.offset) } as *mut _,
-            iov_len: self.len
-        }
-    }
-}
-
-impl AsIoVecMut for Buf {
-
-}
-
-impl AsIoVec for Buf {
-    fn into_new_iovec(&self) -> libc::iovec {
-        self.buffer.into_new_iovec()
     }
 }
 

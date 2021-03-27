@@ -3,11 +3,11 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::Write;
 use std::collections::HashMap;
-use crate::BotInfo;
 use crate::states::login;
 use crate::states::play;
+use crate::Bot;
 
-pub type Packet = fn(buffer: &mut Buf, bot: &mut BotInfo);
+pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot);
 
 pub struct PacketFramer {}
 
@@ -58,7 +58,7 @@ impl PacketFramer {
 }
 
 impl PacketCompressor {
-    pub fn process_write(buffer: Buf, bot: &BotInfo) -> Buf {
+    pub fn process_write(buffer: Buf, bot: &Bot) -> Buf {
         if buffer.get_writer_index() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
             buf.write_var_u32(buffer.get_writer_index());
@@ -76,7 +76,7 @@ impl PacketCompressor {
 }
 
 impl PacketProcessor {
-    pub async fn process_decode(&self, buffer: &mut Buf, bot: &mut BotInfo) -> Option<()> {
+    pub fn process_decode(&self, buffer: &mut Buf, bot: &mut Bot<'_>) -> Option<()> {
         let packet_id = buffer.read_var_u32().0;
         (self.packets.get(&bot.state)?.get(&(packet_id as u8))?)(buffer, bot);
         Some(())

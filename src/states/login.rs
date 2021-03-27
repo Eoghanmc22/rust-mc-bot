@@ -1,5 +1,5 @@
 use crate::packet_utils::Buf;
-use crate::BotInfo;
+use crate::Bot;
 
 //c2s
 pub fn write_handshake_packet(protocol_version: u32,
@@ -27,13 +27,13 @@ pub fn write_login_start_packet(username: &String) -> Buf {
 //s2c
 
 //0x02
-pub fn process_login_success_packet(buffer : &mut Buf, mut bot : &mut BotInfo) {
+pub fn process_login_success_packet(buffer : &mut Buf, mut bot : &mut Bot) {
     let _uuid = buffer.read_u128();
     let _name = buffer.read_sized_string();
     bot.state = 1;
 }
 
 //0x03
-pub fn process_set_compression_packet(buf : &mut Buf, mut bot : &mut BotInfo) {
+pub fn process_set_compression_packet(buf : &mut Buf, mut bot : &mut Bot) {
     bot.compression_threshold = buf.read_var_u32().0 as i32;
 }
