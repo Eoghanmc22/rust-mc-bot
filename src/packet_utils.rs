@@ -251,7 +251,7 @@ impl Buf {
         let mut read;
         loop {
             read = self.read_byte() as u32;
-            result |= (read & 0b01111111) << (7 * num_read);
+            result |= (read & 0b01111111).overflowing_shl(7 * num_read).0;
             num_read += 1;
             if num_read > 5 {
                 panic!("VarInt is too big")
@@ -269,7 +269,7 @@ impl Buf {
         let mut read;
         loop {
             read = self.read_byte() as u64;
-            result |= (read & 0b01111111) << (7 * num_read);
+            result |= (read & 0b01111111).overflowing_shl((7 * num_read) as u32).0;
             num_read += 1;
             if num_read > 10 {
                 panic!("VarLong is too big")

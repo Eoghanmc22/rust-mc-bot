@@ -31,13 +31,14 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
     if packet_buf.get_writer_index() == 0 {
         return;
     }
-    {
+    loop {
         let len = packet_buf.buffer.len();
         if packet_buf.get_writer_index() == len as u32 {
             packet_buf.buffer.reserve(len);
             unsafe { packet_buf.buffer.set_len(len * 2); }
-            println!("new buf size: {}", packet_buf.buffer.len());
             read_socket(bot, packet_buf);
+        } else {
+            break;
         }
     }
     let mut next = 0;
@@ -57,6 +58,7 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
 
         //handle incomplete packet
         if packet_buf.get_writer_index() < size as u32 + packet_buf.get_reader_index() {
+            packet_buf.set_reader_index(packet_buf.get_reader_index()-tuple.1);
             buffer(packet_buf, &mut bot.buffering_buf);
             break;
         }

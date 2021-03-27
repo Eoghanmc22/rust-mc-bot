@@ -13,7 +13,7 @@ use mio::net::TcpStream;
 use crate::packet_processors::PacketProcessor;
 use crate::states::login;
 use crate::packet_utils::Buf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const SHOULD_MOVE: bool = true;
 
@@ -85,7 +85,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr) {
     let packet_handler = PacketProcessor::new();
 
     fn start_bot(bot : &mut Bot, registry : &Registry) {
-        registry.register(&mut bot.stream, bot.token, Interest::READABLE).expect("could not register");
+        registry.register(&mut bot.stream, bot.token, Interest::READABLE.add(Interest::WRITABLE)).expect("could not register");
         //login sequence
         let buf = login::write_handshake_packet(754, "".to_string(), 0, 2);
         bot.send_packet(buf);
@@ -110,11 +110,11 @@ pub fn start_bots(count : u32, addrs : SocketAddr) {
 
     let mut packet_buf = Buf::with_length(2000);
     let mut uncompressed_buf = Buf::with_length(2000);
-
-    let duration = Duration::from_millis(50);
+    let dur = Duration::from_millis(50);
 
     loop {
-        poll.poll(&mut events, Some(duration)).expect("couldn't poll");
+        let ins = Instant::now();
+        poll.poll(&mut events, Some(dur)).expect("couldn't poll");
         for event in events.iter() {
             if let Some(bot) = map.get_mut(&event.token()) {
                 if event.is_readable() {
@@ -122,9 +122,17 @@ pub fn start_bots(count : u32, addrs : SocketAddr) {
                 }
             }
         }
-        for value in map.values_mut() {
-            if SHOULD_MOVE && value.teleported {
-                value.send_packet(play::write_current_pos(value))
+
+        let elapsed = ins.elapsed();
+        if elapsed < dur {
+            std::thread::sleep(dur-elapsed);
+        }
+
+        for bot in map.values_mut() {
+            if SHOULD_MOVE && bot.teleported {
+                bot.x += rand::random::<f64>()*2.0-1.0;
+                bot.z += rand::random::<f64>()*2.0-1.0;
+                bot.send_packet(play::write_current_pos(bot))
             }
         }
     }
