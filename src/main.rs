@@ -43,16 +43,16 @@ fn main() -> io::Result<()> {
     }
 
     if count_per_thread == 0 && extra > 0 {
-        start_bots(extra, addrs.clone());
+        start_bots(extra, addrs.clone(), 0);
         return Ok(());
     } else if count_per_thread > 0 {
         let mut threads = Vec::new();
-        for _cpu in 0..cpus {
+        for cpu in 0..cpus {
             let addrs = addrs.clone();
-            threads.push(std::thread::spawn(move || { start_bots(count_per_thread, addrs) }))
+            threads.push(std::thread::spawn(move || { start_bots(count_per_thread, addrs, cpu) }))
         }
 
-        start_bots(extra, addrs.clone());
+        start_bots(extra, addrs.clone(), cpus);
 
         for thread in threads {
             let _ = thread.join();
@@ -76,7 +76,10 @@ pub struct Bot<'a> {
     pub buffering_buf : Buf
 }
 
-pub fn start_bots(count : u32, addrs : SocketAddr) {
+pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
+    if count == 0 {
+        return;
+    }
     let mut poll = Poll::new().expect("could not unwrap poll");
     //todo check used cap
     let mut events = Events::with_capacity((count * 5) as usize);
@@ -85,7 +88,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr) {
     let packet_handler = PacketProcessor::new();
 
     fn start_bot(bot : &mut Bot, registry : &Registry) {
-        registry.register(&mut bot.stream, bot.token, Interest::READABLE.add(Interest::WRITABLE)).expect("could not register");
+        registry.register(&mut bot.stream, bot.token, Interest::READABLE).expect("could not register");
         //login sequence
         let buf = login::write_handshake_packet(754, "".to_string(), 0, 2);
         bot.send_packet(buf);
@@ -100,7 +103,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr) {
         let token = Token(bot as usize);
         let mut name = String::new();
         name.push_str("Bot_");
-        name.push_str(bot.to_string().as_str());
+        name.push_str((count * bunch + bot).to_string().as_str());
 
         let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200) };
         start_bot(&mut bot, registry);
@@ -130,8 +133,8 @@ pub fn start_bots(count : u32, addrs : SocketAddr) {
 
         for bot in map.values_mut() {
             if SHOULD_MOVE && bot.teleported {
-                bot.x += rand::random::<f64>()*2.0-1.0;
-                bot.z += rand::random::<f64>()*2.0-1.0;
+                bot.x += rand::random::<f64>()*1.0-0.5;
+                bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot))
             }
         }
