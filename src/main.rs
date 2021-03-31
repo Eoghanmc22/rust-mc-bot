@@ -83,7 +83,6 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
     let mut poll = Poll::new().expect("could not unwrap poll");
     //todo check used cap
     let mut events = Events::with_capacity((count * 5) as usize);
-    let registry = poll.registry();
     let mut map = HashMap::new();
     let packet_handler = PacketProcessor::new();
 
@@ -99,29 +98,40 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
         println!("bot \"{}\" joined", bot.name);
     }
 
-    for bot in 0..count {
-        let token = Token(bot as usize);
-        let mut name = String::new();
-        name.push_str("Bot_");
-        name.push_str((count * bunch + bot).to_string().as_str());
-
-        let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200) };
-        start_bot(&mut bot, registry);
-
-        map.insert(token, bot);
-    }
+    let bots_per_tick = 1;
+    let mut bots_joined = 0;
 
     let mut packet_buf = Buf::with_length(2000);
     let mut uncompressed_buf = Buf::with_length(2000);
     let dur = Duration::from_millis(50);
 
     loop {
+        if bots_joined < count {
+            let registry = poll.registry();
+            for bot in bots_joined..(bots_per_tick + bots_joined) {
+                let token = Token(bot as usize);
+                let mut name = String::new();
+                name.push_str("Bot_");
+                name.push_str((count * bunch + bot).to_string().as_str());
+
+                let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200) };
+                start_bot(&mut bot, registry);
+
+                map.insert(token, bot);
+            }
+            bots_joined += bots_per_tick;
+        }
+
         let ins = Instant::now();
         poll.poll(&mut events, Some(dur)).expect("couldn't poll");
         for event in events.iter() {
             if let Some(bot) = map.get_mut(&event.token()) {
                 if event.is_readable() {
                     net::process_packet(bot, &mut packet_buf, &mut uncompressed_buf);
+                    if bot.kicked == true {
+                        let token = bot.token;
+                        map.remove(&token).expect("kicked bot doesn't exist");
+                    }
                 }
             }
         }
