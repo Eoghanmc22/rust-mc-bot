@@ -5,7 +5,7 @@ mod states;
 
 use std::{net::ToSocketAddrs, env};
 use std::io;
-use mio::{Poll, Events, Token, Registry, Interest};
+use mio::{Poll, Events, Token, Interest};
 use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
@@ -73,7 +73,8 @@ pub struct Bot<'a> {
     pub x : f64,
     pub y : f64,
     pub z : f64,
-    pub buffering_buf : Buf
+    pub buffering_buf : Buf,
+    pub joined : bool
 }
 
 pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
@@ -86,8 +87,8 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
     let mut map = HashMap::new();
     let packet_handler = PacketProcessor::new();
 
-    fn start_bot(bot : &mut Bot, registry : &Registry) {
-        registry.register(&mut bot.stream, bot.token, Interest::READABLE).expect("could not register");
+    fn start_bot(bot : &mut Bot) {
+        bot.joined = true;
         //login sequence
         let buf = login::write_handshake_packet(754, "".to_string(), 0, 2);
         bot.send_packet(buf);
@@ -114,8 +115,8 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
                 name.push_str("Bot_");
                 name.push_str((count * bunch + bot).to_string().as_str());
 
-                let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200) };
-                start_bot(&mut bot, registry);
+                let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
+                registry.register(&mut bot.stream, bot.token, Interest::READABLE.add(Interest::WRITABLE)).expect("could not register");
 
                 map.insert(token, bot);
             }
@@ -126,7 +127,10 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
         poll.poll(&mut events, Some(dur)).expect("couldn't poll");
         for event in events.iter() {
             if let Some(bot) = map.get_mut(&event.token()) {
-                if event.is_readable() {
+                if event.is_writable() && !bot.joined {
+                    start_bot(bot);
+                }
+                if event.is_readable() && bot.joined {
                     net::process_packet(bot, &mut packet_buf, &mut uncompressed_buf);
                     if bot.kicked == true {
                         let token = bot.token;
