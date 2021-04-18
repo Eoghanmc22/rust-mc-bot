@@ -20,19 +20,26 @@ const SHOULD_MOVE: bool = true;
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() != 3 {
+    if args.len() <= 3 {
         let name = args.get(0).unwrap();
-        println!("usage: {} <ip:port> <count>", name);
+        println!("usage: {} <ip:port> <count> [threads]", name);
         println!("example: {} localhost:25565 500", name);
         return Ok(());
     }
 
     let arg1 = args.get(1).unwrap();
     let arg2 = args.get(2).unwrap();
+    let arg3 = args.get(3);
 
     let addrs = arg1.to_socket_addrs().expect(&format!("{} is not a ip", arg1)).nth(0).expect(&format!("{} is not a ip", arg1));
     let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
-    let cpus = 1.max(num_cpus::get()) as u32;
+    let mut cpus = 1.max(num_cpus::get()) as u32;
+
+    if let Option::Some(str) = arg3 {
+        cpus = str.parse().expect(&format!("{} is not a number", arg2));
+    }
+
+    println!("cpus: {}", cpus);
 
     let count_per_thread = count/cpus;
     let mut extra = 0;
@@ -43,16 +50,16 @@ fn main() -> io::Result<()> {
     }
 
     if count_per_thread == 0 && extra > 0 {
-        start_bots(extra, addrs.clone(), 0);
+        start_bots(extra, addrs.clone(), 0, cpus);
         return Ok(());
     } else if count_per_thread > 0 {
         let mut threads = Vec::new();
         for cpu in 0..cpus {
             let addrs = addrs.clone();
-            threads.push(std::thread::spawn(move || { start_bots(count_per_thread, addrs, cpu) }))
+            threads.push(std::thread::spawn(move || { start_bots(count_per_thread, addrs, cpu, cpus) }))
         }
 
-        start_bots(extra, addrs.clone(), cpus);
+        start_bots(extra, addrs.clone(), cpus, cpus);
 
         for thread in threads {
             let _ = thread.join();
@@ -77,7 +84,7 @@ pub struct Bot<'a> {
     pub joined : bool
 }
 
-pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
+pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32, cpus: u32) {
     if count == 0 {
         return;
     }
@@ -99,7 +106,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32) {
         println!("bot \"{}\" joined", bot.name);
     }
 
-    let bots_per_tick = 1;
+    let bots_per_tick = (20.0/cpus as f64).round() as u32;
     let mut bots_joined = 0;
 
     let mut packet_buf = Buf::with_length(2000);
