@@ -29,6 +29,7 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
     unbuffer(packet_buf, &mut bot.buffering_buf);
     read_socket(bot, packet_buf);
     if packet_buf.get_writer_index() == 0 {
+        bot.kicked = true;
         return;
     }
     loop {
