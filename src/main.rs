@@ -20,7 +20,7 @@ const SHOULD_MOVE: bool = true;
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() <= 3 {
+    if args.len() < 3 {
         let name = args.get(0).unwrap();
         println!("usage: {} <ip:port> <count> [threads]", name);
         println!("example: {} localhost:25565 500", name);

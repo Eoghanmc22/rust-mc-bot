@@ -1,12 +1,26 @@
 use crate::packet_utils::Buf;
 use flate2::write::ZlibDecoder;
-use std::io::{Write, Read};
+use std::io::{Write, Read, ErrorKind};
 use crate::{packet_processors, Bot};
 
-pub fn read_socket(bot: &mut Bot<'_>, packet: &mut Buf) {
+pub fn read_socket(bot: &mut Bot<'_>, packet: &mut Buf) -> bool {
     let w_i = packet.get_writer_index();
-    let written = bot.stream.read(&mut packet.buffer[w_i as usize..]).expect("unable to read socket") as u32;
-    packet.set_writer_index(packet.get_writer_index() + written);
+    let result = bot.stream.read(&mut packet.buffer[w_i as usize..])/*.expect("unable to read socket") as u32*/;
+    match result {
+        Ok(written) => {
+            packet.set_writer_index(packet.get_writer_index() + written as u32);
+            true
+        }
+        Err(e) => {
+            match e.kind() {
+                ErrorKind::WouldBlock => {}
+                _ => {
+                    panic!("unable to read socket: {:?}", e)
+                }
+            }
+            false
+        }
+    }
 }
 
 pub fn buffer(temp_buf: &mut Buf, buffering_buf: &mut Buf) {
@@ -27,12 +41,11 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
 
     //read new packets
     unbuffer(packet_buf, &mut bot.buffering_buf);
-    read_socket(bot, packet_buf);
-    if packet_buf.get_writer_index() == 0 {
-        bot.kicked = true;
-        return;
-    }
-    loop {
+    while read_socket(bot, packet_buf) {
+        if packet_buf.get_writer_index() == 0 {
+            bot.kicked = true;
+            return;
+        }
         let len = packet_buf.buffer.len();
         if packet_buf.get_writer_index() == len as u32 {
             packet_buf.buffer.reserve(len);
