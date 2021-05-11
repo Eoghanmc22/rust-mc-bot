@@ -4,6 +4,9 @@ use std::io::{Write, Read, ErrorKind};
 use crate::{packet_processors, Bot};
 
 pub fn read_socket(bot: &mut Bot<'_>, packet: &mut Buf) -> bool {
+    if bot.kicked {
+        return false;
+    }
     let w_i = packet.get_writer_index();
     let result = bot.stream.read(&mut packet.buffer[w_i as usize..])/*.expect("unable to read socket") as u32*/;
     match result {
@@ -15,7 +18,8 @@ pub fn read_socket(bot: &mut Bot<'_>, packet: &mut Buf) -> bool {
             match e.kind() {
                 ErrorKind::WouldBlock => {}
                 _ => {
-                    panic!("unable to read socket: {:?}", e)
+                    bot.kicked = true;
+                    println!("unable to read socket: {:?}", e)
                 }
             }
             false
@@ -51,9 +55,15 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
             packet_buf.buffer.reserve(len);
             unsafe { packet_buf.buffer.set_len(len * 2); }
             read_socket(bot, packet_buf);
+            if bot.kicked {
+                return;
+            }
         } else {
             break;
         }
+    }
+    if bot.kicked {
+        return;
     }
     let mut next = 0;
 
@@ -87,9 +97,11 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
                 decompression_buf.set_reader_index(0);
                 decompression_buf.set_writer_index(0);
                 unsafe {
-                    decompression_buf.buffer.set_len(0);
+                    if real_length as usize > decompression_buf.buffer.len() {
+                        decompression_buf.buffer.reserve(real_length as usize - decompression_buf.buffer.len());
+                        decompression_buf.buffer.set_len(decompression_buf.buffer.capacity());
+                    }
                 }
-                decompression_buf.buffer.reserve(real_length as usize);
 
                 {
                     //decompress
@@ -130,6 +142,12 @@ impl Bot<'_> {
             packet = packet_processors::PacketCompressor::process_write(packet, &self);
         }
         packet = packet_processors::PacketFramer::process_write(packet);
-        self.stream.write_all(&packet.buffer[packet.get_reader_index() as usize..packet.get_writer_index() as usize]).expect("could not write buffer");
+        match self.stream.write_all(&packet.buffer[packet.get_reader_index() as usize..packet.get_writer_index() as usize]) {
+            Ok(_) => {}
+            Err(e) => {
+                self.kicked = true;
+                println!("could not write to buf: {}", e);
+            }
+        }
     }
 }

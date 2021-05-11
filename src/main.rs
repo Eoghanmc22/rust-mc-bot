@@ -152,12 +152,21 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32, cpus: u32) {
             std::thread::sleep(dur-elapsed);
         }
 
+        let mut to_remove = Vec::new();
+
         for bot in map.values_mut() {
             if SHOULD_MOVE && bot.teleported {
                 bot.x += rand::random::<f64>()*1.0-0.5;
                 bot.z += rand::random::<f64>()*1.0-0.5;
-                bot.send_packet(play::write_current_pos(bot))
+                bot.send_packet(play::write_current_pos(bot));
             }
+            if bot.kicked {
+                to_remove.push(bot.token);
+            }
+        }
+
+        for bot in to_remove {
+            let _ = map.remove(&bot);
         }
     }
 }
