@@ -50,7 +50,7 @@ pub fn write_tele_confirm(id : u32) -> Buf {
 
 pub fn write_keep_alive_packet(id : u64) -> Buf {
     let mut buf = Buf::new();
-    buf.write_packet_id(0x10);
+    buf.write_packet_id(0x0F);
 
     buf.write_u64(id);
     buf
@@ -62,7 +62,7 @@ pub fn write_current_pos(bot : &Bot) -> Buf {
 
 pub fn write_pos(x : f64, y : f64, z : f64, yaw : f32, pitch : f32) -> Buf {
     let mut buf = Buf::new();
-    buf.write_packet_id(0x13);
+    buf.write_packet_id(0x12);
 
     buf.write_f64(x);
     buf.write_f64(y);
@@ -88,6 +88,7 @@ pub fn write_client_settings() -> Buf {
     buf.write_bool(true);
     buf.write_u8(0xFF);
     buf.write_var_u32(0);
+    buf.write_bool(true);
 
     buf
 }
