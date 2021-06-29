@@ -97,7 +97,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32, cpus: u32) {
     fn start_bot(bot : &mut Bot) {
         bot.joined = true;
         //login sequence
-        let buf = login::write_handshake_packet(754, "".to_string(), 0, 2);
+        let buf = login::write_handshake_packet(755, "".to_string(), 0, 2);
         bot.send_packet(buf);
 
         let buf = login::write_login_start_packet(&bot.name);
