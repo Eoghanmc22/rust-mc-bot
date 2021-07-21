@@ -17,6 +17,8 @@ use std::time::{Duration, Instant};
 
 const SHOULD_MOVE: bool = true;
 
+const PROTOCOL_VERSION: u32 = 756;
+
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -97,7 +99,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32, cpus: u32) {
     fn start_bot(bot : &mut Bot) {
         bot.joined = true;
         //login sequence
-        let buf = login::write_handshake_packet(755, "".to_string(), 0, 2);
+        let buf = login::write_handshake_packet(PROTOCOL_VERSION, "".to_string(), 0, 2);
         bot.send_packet(buf);
 
         let buf = login::write_login_start_packet(&bot.name);
