@@ -44,24 +44,24 @@ fn main() -> io::Result<()> {
     println!("cpus: {}", cpus);
 
     let count_per_thread = count/cpus;
-    let mut extra = 0;
-    if count_per_thread == 0 && count != 0 {
-        extra = count;
-    } else if count % cpus != 0 {
-        extra = count % cpus;
-    }
+    let mut extra = count%cpus;
+    let mut names_used = 0;
 
-    if count_per_thread == 0 && extra > 0 {
-        start_bots(extra, addrs.clone(), 0, cpus);
-        return Ok(());
-    } else if count_per_thread > 0 {
+    if count_per_thread > 0 || extra > 0 {
         let mut threads = Vec::new();
-        for cpu in 0..cpus {
-            let addrs = addrs.clone();
-            threads.push(std::thread::spawn(move || { start_bots(count_per_thread, addrs, cpu, cpus) }))
-        }
+        for _ in 0..cpus {
+            let mut count = count_per_thread;
 
-        start_bots(extra, addrs.clone(), cpus, cpus);
+            if extra > 0 {
+                extra -= 1;
+                count += 1;
+            }
+
+            let addrs = addrs.clone();
+            threads.push(std::thread::spawn(move || { start_bots(count, addrs, names_used, cpus) }));
+
+            names_used += count;
+        }
 
         for thread in threads {
             let _ = thread.join();
@@ -86,7 +86,7 @@ pub struct Bot<'a> {
     pub joined : bool
 }
 
-pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32, cpus: u32) {
+pub fn start_bots(count : u32, addrs : SocketAddr, name_offset : u32, cpus: u32) {
     if count == 0 {
         return;
     }
@@ -118,18 +118,17 @@ pub fn start_bots(count : u32, addrs : SocketAddr, bunch : u32, cpus: u32) {
     loop {
         if bots_joined < count {
             let registry = poll.registry();
-            for bot in bots_joined..(bots_per_tick + bots_joined) {
+            for bot in bots_joined..(bots_per_tick + bots_joined).min(count) {
                 let token = Token(bot as usize);
-                let mut name = String::new();
-                name.push_str("Bot_");
-                name.push_str((count * bunch + bot).to_string().as_str());
+                let name = "Bot_".to_owned() + &(name_offset + bot).to_string();
 
                 let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
                 registry.register(&mut bot.stream, bot.token, Interest::READABLE.add(Interest::WRITABLE)).expect("could not register");
 
                 map.insert(token, bot);
+
+                bots_joined += 1;
             }
-            bots_joined += bots_per_tick;
         }
 
         let ins = Instant::now();
