@@ -83,6 +83,7 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
 
         // Skip packets of 0 length
         if size == 0 {
+            println!("0 len packet (shouldn't be possible)");
             continue;
         }
 
@@ -127,8 +128,8 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
                             (packet_buf.get_reader_index() as usize
                                 + size - real_length_tuple.1 as usize)]) {
                         Ok(x) => x,
-                        Err(_) => {
-                            println!("decompression error");
+                        Err(err) => {
+                            println!("decompression error: {}", err);
                             bot.kicked = true;
                             break;
                         },
