@@ -108,7 +108,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr, name_offset : u32, cpus: u32)
         println!("bot \"{}\" joined", bot.name);
     }
 
-    let bots_per_tick = (20.0/cpus as f64).ceil() as u32;
+    let bots_per_tick = (1.0/cpus as f64).ceil() as u32;
     let mut bots_joined = 0;
 
     let mut packet_buf = Buf::with_length(2000);
@@ -141,6 +141,7 @@ pub fn start_bots(count : u32, addrs : SocketAddr, name_offset : u32, cpus: u32)
                 if event.is_readable() && bot.joined {
                     net::process_packet(bot, &mut packet_buf, &mut uncompressed_buf);
                     if bot.kicked {
+                        println!("{} disconnected", bot.name);
                         let token = bot.token;
                         map.remove(&token).expect("kicked bot doesn't exist");
                     }

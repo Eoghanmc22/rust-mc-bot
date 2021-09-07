@@ -43,11 +43,12 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
     packet_buf.set_writer_index(0);
     let packet_processor = bot.packet_processor.clone();
 
-    //read new packets
+    // Read new packets
     unbuffer(packet_buf, &mut bot.buffering_buf);
     while read_socket(bot, packet_buf) {
         if packet_buf.get_writer_index() == 0 {
             bot.kicked = true;
+            println!("No new data");
             return;
         }
         let len = packet_buf.buffer.len();
@@ -67,32 +68,37 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
     }
     let mut next = 0;
 
-    //process all of the Minecraft packets received
+    // Process all of the Minecraft packets received
     loop {
-        //handle packet that have an incomplete size field
+        // Handle packet that have an incomplete size field
         if packet_buf.get_writer_index() as u32 - next < 3 {
             buffer(packet_buf, &mut bot.buffering_buf);
             break;
         }
 
-        //read packet size
+        // Read packet size
         let tuple = packet_buf.read_var_u32();
         let size = tuple.0 as usize;
         next += tuple.0 + tuple.1;
 
-        //handle incomplete packet
+        // Skip packets of 0 length
+        if size == 0 {
+            continue;
+        }
+
+        // Handle incomplete packet
         if packet_buf.get_writer_index() < size as u32 + packet_buf.get_reader_index() {
             packet_buf.set_reader_index(packet_buf.get_reader_index()-tuple.1);
             buffer(packet_buf, &mut bot.buffering_buf);
             break;
         }
 
-        //decompress if needed and parse the packet
+        // Decompress if needed and parse the packet
         if bot.compression_threshold > 0 {
             let real_length_tuple = packet_buf.read_var_u32();
             let real_length = real_length_tuple.0;
 
-            //buffer is compressed
+            // Buffer is compressed
             if real_length != 0 {
                 decompression_buf.set_reader_index(0);
                 decompression_buf.set_writer_index(0);
@@ -104,13 +110,29 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
                 }
 
                 {
-                    //decompress
+                    let s = packet_buf.get_reader_index() as usize;
+                    let e = packet_buf.get_reader_index() as usize + size -real_length_tuple.1 as usize;
+
+                    if s > e {
+                        println!("s {} > e {}, size: {}, tl: {}, ri: {}, wi: {}", s, e, size, real_length_tuple.1, packet_buf.get_reader_index(), packet_buf.get_writer_index());
+                        bot.kicked = true;
+                        break;
+                    }
+
+                    // Decompress
                     let mut decompressor = ZlibDecoder::new(&mut decompression_buf);
-                    decompressor.write_all(
+                    match decompressor.write_all(
                         &packet_buf.buffer[packet_buf.get_reader_index() as usize
                             ..
                             (packet_buf.get_reader_index() as usize
-                                + size -real_length_tuple.1 as usize)]).unwrap();
+                                + size - real_length_tuple.1 as usize)]) {
+                        Ok(x) => x,
+                        Err(_) => {
+                            println!("decompression error");
+                            bot.kicked = true;
+                            break;
+                        },
+                    };
                 }
 
                 packet_processor.process_decode(&mut decompression_buf, bot);
@@ -124,7 +146,7 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
             break;
         }
 
-        //prepare for next packet and exit condition
+        // Prepare for next packet and exit condition
         packet_buf.set_reader_index(next);
         if packet_buf.get_reader_index() >= packet_buf.get_writer_index() {
             break;
