@@ -5,15 +5,17 @@ mod states;
 
 use std::{net::ToSocketAddrs, env};
 use std::io;
-use mio::{Poll, Events, Token, Interest};
+use mio::{Poll, Events, Token, Interest, event, Registry};
 use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
-use mio::net::TcpStream;
+use mio::net::{TcpStream, UnixStream};
 use crate::packet_processors::PacketProcessor;
 use crate::states::login;
 use crate::packet_utils::Buf;
 use std::time::{Duration, Instant};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
 const SHOULD_MOVE: bool = true;
 
@@ -24,8 +26,13 @@ fn main() -> io::Result<()> {
 
     if args.len() < 3 {
         let name = args.get(0).unwrap();
+        #[cfg(unix)]
+        println!("usage: {} <ip:port or path> <count> [threads]", name);
+        #[cfg(not(unix))]
         println!("usage: {} <ip:port> <count> [threads]", name);
         println!("example: {} localhost:25565 500", name);
+        #[cfg(unix)]
+        println!("example: {} unix:///path/to/socket 500", name);
         return Ok(());
     }
 
@@ -33,7 +40,21 @@ fn main() -> io::Result<()> {
     let arg2 = args.get(2).unwrap();
     let arg3 = args.get(3);
 
-    let addrs = arg1.to_socket_addrs().expect(&format!("{} is not a ip", arg1)).nth(0).expect(&format!("{} is not a ip", arg1));
+    let mut addrs = None;
+
+    #[cfg(unix)]
+    if arg1.starts_with("unix://") {
+        addrs = Some(Address::UNIX(PathBuf::from(arg1.to_owned())));
+    }
+
+    if addrs.is_none() {
+        let server = arg1.to_socket_addrs().expect(&format!("{} is not a ip", arg1)).nth(0).expect(&format!("{} is not a ip", arg1));
+        addrs = Some(Address::TCP(server));
+    }
+
+    // Cant be none because it would have panicked earlier
+    let addrs = addrs.unwrap();
+
     let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
     let mut cpus = 1.max(num_cpus::get()) as u32;
 
@@ -72,7 +93,7 @@ fn main() -> io::Result<()> {
 
 pub struct Bot<'a> {
     pub token : Token,
-    pub stream : TcpStream,
+    pub stream : Stream,
     pub name : String,
     pub packet_processor: &'a PacketProcessor,
     pub compression_threshold: i32,
@@ -86,7 +107,7 @@ pub struct Bot<'a> {
     pub joined : bool
 }
 
-pub fn start_bots(count : u32, addrs : SocketAddr, name_offset : u32, cpus: u32) {
+pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     if count == 0 {
         return;
     }
@@ -122,8 +143,8 @@ pub fn start_bots(count : u32, addrs : SocketAddr, name_offset : u32, cpus: u32)
                 let token = Token(bot as usize);
                 let name = "Bot_".to_owned() + &(name_offset + bot).to_string();
 
-                let mut bot = Bot { token, stream : TcpStream::connect(addrs).expect("Could not connect to the server"), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
-                registry.register(&mut bot.stream, bot.token, Interest::READABLE.add(Interest::WRITABLE)).expect("could not register");
+                let mut bot = Bot { token, stream : addrs.connect(), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
+                registry.register(&mut bot.stream, bot.token, Interest::READABLE | Interest::WRITABLE).expect("could not register");
 
                 map.insert(token, bot);
 
@@ -169,6 +190,103 @@ pub fn start_bots(count : u32, addrs : SocketAddr, name_offset : u32, cpus: u32)
 
         for bot in to_remove {
             let _ = map.remove(&bot);
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum Address {
+    #[cfg(unix)]
+    UNIX(PathBuf),
+    TCP(SocketAddr)
+}
+
+impl Address {
+    pub fn connect(&self) -> Stream {
+        match self {
+            Address::UNIX(path) => {
+                Stream::UNIX(UnixStream::connect(path).expect("Could not connect to the server"))
+            }
+            Address::TCP(address) => {
+                Stream::TCP(TcpStream::connect(address.to_owned()).expect("Could not connect to the server"))
+            }
+        }
+    }
+}
+
+pub enum Stream {
+    UNIX(UnixStream),
+    TCP(TcpStream)
+}
+
+impl Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            Stream::UNIX(s) => {
+                s.read(buf)
+            }
+            Stream::TCP(s) => {
+                s.read(buf)
+            }
+        }
+    }
+}
+
+impl Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Stream::UNIX(s) => {
+                s.write(buf)
+            }
+            Stream::TCP(s) => {
+                s.write(buf)
+            }
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Stream::UNIX(s) => {
+                s.flush()
+            }
+            Stream::TCP(s) => {
+                s.flush()
+            }
+        }
+    }
+}
+
+impl event::Source for Stream {
+    fn register(&mut self, registry: &Registry, token: Token, interests: Interest) -> io::Result<()> {
+        match self {
+            Stream::UNIX(s) => {
+                s.register(registry, token, interests)
+            }
+            Stream::TCP(s) => {
+                s.register(registry, token, interests)
+            }
+        }
+    }
+
+    fn reregister(&mut self, registry: &Registry, token: Token, interests: Interest) -> io::Result<()> {
+        match self {
+            Stream::UNIX(s) => {
+                s.reregister(registry, token, interests)
+            }
+            Stream::TCP(s) => {
+                s.reregister(registry, token, interests)
+            }
+        }
+    }
+
+    fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
+        match self {
+            Stream::UNIX(s) => {
+                s.deregister(registry)
+            }
+            Stream::TCP(s) => {
+                s.deregister(registry)
+            }
         }
     }
 }
