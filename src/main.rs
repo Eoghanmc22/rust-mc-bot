@@ -9,18 +9,21 @@ use mio::{Poll, Events, Token, Interest, event, Registry};
 use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
-use mio::net::{TcpStream, UnixStream};
+use mio::net::TcpStream;
 use crate::packet_processors::PacketProcessor;
 use crate::states::login;
 use crate::packet_utils::Buf;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
-use std::path::PathBuf;
+
+#[cfg(unix)]
+use {mio::net::UnixStream, std::path::PathBuf};
 
 const SHOULD_MOVE: bool = true;
 
 const PROTOCOL_VERSION: u32 = 756;
 
+#[cfg(unix)]
 const UDS_PREFIX : &str = "unix://";
 
 fn main() -> io::Result<()> {
@@ -206,6 +209,7 @@ pub enum Address {
 impl Address {
     pub fn connect(&self) -> Stream {
         match self {
+            #[cfg(unix)]
             Address::UNIX(path) => {
                 Stream::UNIX(UnixStream::connect(path).expect("Could not connect to the server"))
             }
@@ -217,6 +221,7 @@ impl Address {
 }
 
 pub enum Stream {
+    #[cfg(unix)]
     UNIX(UnixStream),
     TCP(TcpStream)
 }
@@ -224,6 +229,7 @@ pub enum Stream {
 impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
+            #[cfg(unix)]
             Stream::UNIX(s) => {
                 s.read(buf)
             }
@@ -237,6 +243,7 @@ impl Read for Stream {
 impl Write for Stream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
+            #[cfg(unix)]
             Stream::UNIX(s) => {
                 s.write(buf)
             }
@@ -248,6 +255,7 @@ impl Write for Stream {
 
     fn flush(&mut self) -> io::Result<()> {
         match self {
+            #[cfg(unix)]
             Stream::UNIX(s) => {
                 s.flush()
             }
@@ -261,6 +269,7 @@ impl Write for Stream {
 impl event::Source for Stream {
     fn register(&mut self, registry: &Registry, token: Token, interests: Interest) -> io::Result<()> {
         match self {
+            #[cfg(unix)]
             Stream::UNIX(s) => {
                 s.register(registry, token, interests)
             }
@@ -272,6 +281,7 @@ impl event::Source for Stream {
 
     fn reregister(&mut self, registry: &Registry, token: Token, interests: Interest) -> io::Result<()> {
         match self {
+            #[cfg(unix)]
             Stream::UNIX(s) => {
                 s.reregister(registry, token, interests)
             }
@@ -283,6 +293,7 @@ impl event::Source for Stream {
 
     fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
         match self {
+            #[cfg(unix)]
             Stream::UNIX(s) => {
                 s.deregister(registry)
             }
