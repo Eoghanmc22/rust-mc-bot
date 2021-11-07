@@ -44,7 +44,7 @@ fn main() -> io::Result<()> {
 
     #[cfg(unix)]
     if arg1.starts_with("unix://") {
-        addrs = Some(Address::UNIX(PathBuf::from(arg1.to_owned())));
+        addrs = Some(Address::UNIX(PathBuf::from(arg1[7..].to_owned())));
     }
 
     if addrs.is_none() {
