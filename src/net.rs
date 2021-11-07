@@ -7,21 +7,26 @@ pub fn read_socket(bot: &mut Bot<'_>, packet: &mut Buf) -> bool {
     if bot.kicked {
         return false;
     }
+
     let w_i = packet.get_writer_index();
-    let result = bot.stream.read(&mut packet.buffer[w_i as usize..])/*.expect("unable to read socket") as u32*/;
+    let result = bot.stream.read(&mut packet.buffer[w_i as usize..]);
     match result {
+        Ok(0) => {
+            println!("Peer closed socket");
+            bot.kicked = true;
+            false
+        }
         Ok(written) => {
             packet.set_writer_index(packet.get_writer_index() + written as u32);
             true
         }
+        Err(e) if e.kind() == ErrorKind::WouldBlock => {
+            // Break out of loop
+            false
+        }
         Err(e) => {
-            match e.kind() {
-                ErrorKind::WouldBlock => {}
-                _ => {
-                    bot.kicked = true;
-                    println!("unable to read socket: {:?}", e)
-                }
-            }
+            println!("unable to read socket: {:?}", e);
+            bot.kicked = true;
             false
         }
     }
@@ -46,26 +51,18 @@ pub fn process_packet(bot: &mut Bot<'_>, packet_buf: &mut Buf, mut decompression
     // Read new packets
     unbuffer(packet_buf, &mut bot.buffering_buf);
     while read_socket(bot, packet_buf) {
-        if packet_buf.get_writer_index() == 0 {
-            bot.kicked = true;
-            println!("No new data");
-            return;
-        }
         let len = packet_buf.buffer.len();
+
+        // Reallocate if full
         if packet_buf.get_writer_index() == len as u32 {
             packet_buf.buffer.reserve(len);
             unsafe { packet_buf.buffer.set_len(len * 2); }
-            read_socket(bot, packet_buf);
-            if bot.kicked {
-                return;
-            }
-        } else {
-            break;
         }
     }
     if bot.kicked {
         return;
     }
+
     let mut next = 0;
 
     // Process all of the Minecraft packets received
