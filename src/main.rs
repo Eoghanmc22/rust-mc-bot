@@ -21,6 +21,8 @@ const SHOULD_MOVE: bool = true;
 
 const PROTOCOL_VERSION: u32 = 756;
 
+const UDS_PREFIX : &str = "unix://";
+
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -43,8 +45,8 @@ fn main() -> io::Result<()> {
     let mut addrs = None;
 
     #[cfg(unix)]
-    if arg1.starts_with("unix://") {
-        addrs = Some(Address::UNIX(PathBuf::from(arg1[7..].to_owned())));
+    if arg1.starts_with(UDS_PREFIX) {
+        addrs = Some(Address::UNIX(PathBuf::from(arg1[UDS_PREFIX.len()..].to_owned())));
     }
 
     if addrs.is_none() {
