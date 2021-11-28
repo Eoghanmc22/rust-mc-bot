@@ -89,6 +89,7 @@ pub fn write_client_settings() -> Buf {
     buf.write_u8(0xFF);
     buf.write_var_u32(0);
     buf.write_bool(true);
+    buf.write_bool(false);
 
     buf
 }
