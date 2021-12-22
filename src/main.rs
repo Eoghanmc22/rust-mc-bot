@@ -6,7 +6,7 @@ mod states;
 use std::{net::ToSocketAddrs, env};
 use std::io;
 use mio::{Poll, Events, Token, Interest, event, Registry};
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use states::play;
 use std::collections::HashMap;
 use mio::net::TcpStream;
@@ -53,7 +53,12 @@ fn main() -> io::Result<()> {
     }
 
     if addrs.is_none() {
-        let server = arg1.to_socket_addrs().expect(&format!("{} is not a ip", arg1)).nth(0).expect(&format!("{} is not a ip", arg1));
+        let mut parts = arg1.split(":");
+        let ip = parts.next().expect("no ip provided");
+        let port = parts.next().map(|port_string| port_string.parse().expect("invalid port")).unwrap_or(25565u16);
+
+        let server = (ip, port).to_socket_addrs().expect("Not a socket address").next().expect("No socket address found");
+
         addrs = Some(Address::TCP(server));
     }
 
