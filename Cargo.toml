@@ -7,10 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.release]
-# debug = 2
+debug = 2
 
 [dependencies]
 mio = { version = "0.7.11", features = ["os-poll", "net"] }
-flate2 = { version = "1.0.19", features = ["zlib"], default-features = false }
+# flate2 = { version = "1.0.19", features = ["zlib"], default-features = false }
+libdeflater = "0.7.3"
 num_cpus = "1.13.0"
 rand = "0.8.3"

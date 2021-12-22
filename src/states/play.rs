@@ -1,20 +1,20 @@
 use crate::packet_utils::Buf;
-use crate::Bot;
+use crate::{Bot, Compression};
 
-pub fn process_keep_alive_packet(buffer : &mut Buf, bot : &mut Bot) {
-    bot.send_packet(write_keep_alive_packet(buffer.read_u64()));
+pub fn process_keep_alive_packet(buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {
+    bot.send_packet(write_keep_alive_packet(buffer.read_u64()), compression);
 }
 
-pub fn process_kick(buffer : &mut Buf, bot : &mut Bot) {
+pub fn process_kick(buffer : &mut Buf, bot : &mut Bot, _compression: &mut Compression) {
     println!("bot was kicked for \"{}\"", buffer.read_sized_string());
     bot.kicked = true;
 }
 
-pub fn process_join_game(_buffer : &mut Buf, bot : &mut Bot) {
-    bot.send_packet(crate::play::write_client_settings());
+pub fn process_join_game(_buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {
+    bot.send_packet(crate::play::write_client_settings(), compression);
 }
 
-pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot) {
+pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {
     let x = buffer.read_f64();
     let y = buffer.read_f64();
     let z = buffer.read_f64();
@@ -36,7 +36,7 @@ pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot) {
     } else {
         bot.z += z;
     }
-    bot.send_packet(write_tele_confirm(buffer.read_var_u32().0));
+    bot.send_packet(write_tele_confirm(buffer.read_var_u32().0), compression);
     bot.teleported = true;
 }
 

@@ -6,15 +6,15 @@ mod states;
 use std::{net::ToSocketAddrs, env};
 use std::io;
 use mio::{Poll, Events, Token, Interest, event, Registry};
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
 use mio::net::TcpStream;
-use crate::packet_processors::PacketProcessor;
 use crate::states::login;
 use crate::packet_utils::Buf;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
+use libdeflater::{CompressionLvl, Compressor, Decompressor};
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
@@ -25,6 +25,8 @@ const PROTOCOL_VERSION: u32 = 757;
 
 #[cfg(unix)]
 const UDS_PREFIX : &str = "unix://";
+
+type Error = Box<dyn std::error::Error + Send + Sync>;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -78,7 +80,7 @@ fn main() -> io::Result<()> {
     let mut extra = count%cpus;
     let mut names_used = 0;
 
-    if count_per_thread > 0 || extra > 0 {
+    if count > 0 {
         let mut threads = Vec::new();
         for _ in 0..cpus {
             let mut count = count_per_thread;
@@ -101,11 +103,15 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-pub struct Bot<'a> {
+pub struct Compression {
+    compressor: Compressor,
+    decompressor: Decompressor,
+}
+
+pub struct Bot {
     pub token : Token,
     pub stream : Stream,
     pub name : String,
-    pub packet_processor: &'a PacketProcessor,
     pub compression_threshold: i32,
     pub state: u8,
     pub kicked : bool,
@@ -125,16 +131,15 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     //todo check used cap
     let mut events = Events::with_capacity((count * 5) as usize);
     let mut map = HashMap::new();
-    let packet_handler = PacketProcessor::new();
 
-    fn start_bot(bot : &mut Bot) {
+    fn start_bot(bot : &mut Bot, compression: &mut Compression) {
         bot.joined = true;
         //login sequence
         let buf = login::write_handshake_packet(PROTOCOL_VERSION, "".to_string(), 0, 2);
-        bot.send_packet(buf);
+        bot.send_packet(buf, compression);
 
         let buf = login::write_login_start_packet(&bot.name);
-        bot.send_packet(buf);
+        bot.send_packet(buf, compression);
 
         println!("bot \"{}\" joined", bot.name);
     }
@@ -144,16 +149,19 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
 
     let mut packet_buf = Buf::with_length(2000);
     let mut uncompressed_buf = Buf::with_length(2000);
+
+    let mut compression = Compression { compressor: Compressor::new(CompressionLvl::fastest()), decompressor: Decompressor::new() };
+
     let dur = Duration::from_millis(50);
 
-    loop {
+    'main: loop {
         if bots_joined < count {
             let registry = poll.registry();
             for bot in bots_joined..(bots_per_tick + bots_joined).min(count) {
                 let token = Token(bot as usize);
                 let name = "Bot_".to_owned() + &(name_offset + bot).to_string();
 
-                let mut bot = Bot { token, stream : addrs.connect(), name, packet_processor: &packet_handler, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
+                let mut bot = Bot { token, stream : addrs.connect(), name, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
                 registry.register(&mut bot.stream, bot.token, Interest::READABLE | Interest::WRITABLE).expect("could not register");
 
                 map.insert(token, bot);
@@ -167,14 +175,18 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
         for event in events.iter() {
             if let Some(bot) = map.get_mut(&event.token()) {
                 if event.is_writable() && !bot.joined {
-                    start_bot(bot);
+                    start_bot(bot, &mut compression);
                 }
                 if event.is_readable() && bot.joined {
-                    net::process_packet(bot, &mut packet_buf, &mut uncompressed_buf);
+                    net::process_packet(bot, &mut packet_buf, &mut uncompressed_buf, &mut compression);
                     if bot.kicked {
                         println!("{} disconnected", bot.name);
                         let token = bot.token;
                         map.remove(&token).expect("kicked bot doesn't exist");
+
+                        if map.is_empty() {
+                            break 'main;
+                        }
                     }
                 }
             }
@@ -191,7 +203,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
             if SHOULD_MOVE && bot.teleported {
                 bot.x += rand::random::<f64>()*1.0-0.5;
                 bot.z += rand::random::<f64>()*1.0-0.5;
-                bot.send_packet(play::write_current_pos(bot));
+                bot.send_packet(play::write_current_pos(bot), &mut compression);
             }
             if bot.kicked {
                 to_remove.push(bot.token);

@@ -1,46 +1,46 @@
 use crate::packet_utils::Buf;
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
-use std::io::Write;
-use std::collections::HashMap;
+use libdeflater::{CompressionError, Compressor};
 use crate::states::login;
 use crate::states::play;
-use crate::Bot;
+use crate::{Bot, Compression, Error};
 
-pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot);
+pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression);
 
 pub struct PacketFramer {}
 
 pub struct PacketCompressor {}
 
-pub struct PacketProcessor {
-    packets: HashMap<u8, HashMap<u8, Packet>>
+pub fn lookup_packet(state: u8, packet: u8) -> Option<Packet> {
+    match state {
+        // login
+        0 => {
+            match packet {
+                0x02 => return Some(login::process_login_success_packet),
+                0x03 => return Some(login::process_set_compression_packet),
+                _ => {}
+            }
+        }
+
+        // play
+        1 => {
+            match packet {
+                0x21 => return Some(play::process_keep_alive_packet),
+                0x26 => return Some(play::process_join_game),
+                0x38 => return Some(play::process_teleport),
+                0x1A => return Some(play::process_kick),
+                _ => {}
+            }
+        }
+
+        _ => println!("unknown state `{}`", state)
+    }
+    None
 }
 
-impl PacketProcessor {
-    pub fn new() -> Self {
-        let mut map = HashMap::with_capacity(4);
-
-        //Define packets here
-        let mut login: HashMap<u8, Packet> = HashMap::new();
-
-        login.insert(0x02, login::process_login_success_packet);
-        login.insert(0x03, login::process_set_compression_packet);
-
-        map.insert(0, login);
-
-
-        let mut play: HashMap<u8, Packet> = HashMap::new();
-
-        play.insert(0x21, play::process_keep_alive_packet);
-        play.insert(0x26, play::process_join_game);
-        play.insert(0x38, play::process_teleport);
-        play.insert(0x1A, play::process_kick);
-
-        map.insert(1, play);
-
-        PacketProcessor { packets: map }
-    }
+pub fn process_decode(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression) -> Option<()> {
+    let packet_id = buffer.read_var_u32().0 as u8;
+    (lookup_packet(bot.state, packet_id)?)(buffer, bot, compression);
+    Some(())
 }
 
 impl PacketFramer {
@@ -58,27 +58,37 @@ impl PacketFramer {
 }
 
 impl PacketCompressor {
-    pub fn process_write(buffer: Buf, bot: &Bot) -> Buf {
+    pub fn process_write(mut buffer: Buf, bot: &Bot, compression: &mut Compression) -> Result<Buf, Error> {
         if buffer.get_writer_index() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
-            buf.write_var_u32(buffer.get_writer_index());
-            let mut compressor = ZlibEncoder::new(&mut buf, Compression::fast());
-            compressor.write_all(&buffer.buffer[0..buffer.get_writer_index() as usize]).unwrap();
-            compressor.flush_finish().unwrap();
-            buf
+            compress_packet(&mut buffer, &mut compression.compressor, &mut buf)?;
+            Ok(buf)
         } else {
             let mut buf = Buf::new();
             buf.write_var_u32(0);
             buf.append(&buffer, buffer.get_writer_index() as usize);
-            buf
+            Ok(buf)
         }
     }
 }
 
-impl PacketProcessor {
-    pub fn process_decode(&self, buffer: &mut Buf, bot: &mut Bot<'_>) -> Option<()> {
-        let packet_id = buffer.read_var_u32().0;
-        (self.packets.get(&bot.state)?.get(&(packet_id as u8))?)(buffer, bot);
-        Some(())
+pub fn compress_packet(packet: &Buf, compressor: &mut Compressor, compression_buffer: &mut Buf) -> Result<(), Error> {
+    compression_buffer.write_var_u32(packet.get_writer_index());
+    compression_buffer.ensure_writable(compressor.zlib_compress_bound(packet.get_writer_index() as usize) as u32);
+
+    //compress
+    match compressor.zlib_compress(&packet.buffer, &mut compression_buffer.buffer) {
+        Ok(written) => {
+            compression_buffer.set_writer_index(written as u32);
+        }
+        Err(why) => {
+            return match why {
+                CompressionError::InsufficientSpace => {
+                    Err("Not enough space in compression buffer".into())
+                }
+            }
+        }
     }
+
+    Ok(())
 }

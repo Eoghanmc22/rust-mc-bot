@@ -55,7 +55,7 @@ impl Buf {
         }
 
         if extra_len > 0 { dst.set_len(needed_len as usize); }
-        self.write_index += len as u32;
+        self.advance_writer(len as u32);
     }
 
     pub fn append(&mut self, other: &Buf, len : usize) {
@@ -63,16 +63,20 @@ impl Buf {
     }
 
     pub fn ensure_writable(&mut self, num: u32) {
-        if self.buffer.len() as isize - (self.write_index as isize) < num as isize {
-            self.buffer.reserve(self.write_index as usize + num as usize - self.buffer.len());
-            unsafe { self.buffer.set_len(self.buffer.len() + num as usize); }
+        if self.buffer.len() < (self.write_index + num) as usize {
+            let new_bytes = self.write_index + num - self.buffer.len() as u32;
+
+            self.buffer.reserve(new_bytes as usize);
+            unsafe { self.buffer.set_len((self.write_index + num) as usize); }
+
+            //self.buffer.extend(vec![0; new_bytes as usize]); // safe alt for debugging
         }
     }
 
     pub fn write_u8(&mut self, num: u8) {
         self.ensure_writable(1);
         self.buffer[self.write_index as usize] = num;
-        self.write_index += 1;
+        self.advance_writer(1);
     }
 
     pub fn write_bool(&mut self, b: bool) {
@@ -170,7 +174,7 @@ impl Buf {
 
     pub fn read_byte(&mut self) -> u8 {
         let byte: u8 = self.buffer[self.read_index as usize];
-        self.read_index += 1;
+        self.advance_reader(1);
         byte
     }
 
@@ -185,28 +189,28 @@ impl Buf {
     pub fn read_u16(&mut self) -> u16 {
         let index = self.read_index as usize;
         let num: [u8;2] = self.buffer[index..index+2].try_into().unwrap();
-        self.read_index += 2;
+        self.advance_reader(2);
         unsafe { u16::from_be(mem::transmute_copy(&num)) }
     }
 
     pub fn read_u32(&mut self) -> u32 {
         let index = self.read_index as usize;
         let num: [u8;4] = self.buffer[index..index+4].try_into().unwrap();
-        self.read_index += 4;
+        self.advance_reader(4);
         unsafe { u32::from_be(mem::transmute_copy(&num)) }
     }
 
     pub fn read_u64(&mut self) -> u64 {
         let index = self.read_index as usize;
         let num: [u8;8] = self.buffer[index..index+8].try_into().unwrap();
-        self.read_index += 8;
+        self.advance_reader(8);
         unsafe { u64::from_be(mem::transmute_copy(&num)) }
     }
 
     pub fn read_u128(&mut self) -> u128 {
         let index = self.read_index as usize;
         let num: [u8;16] = self.buffer[index..index+16].try_into().unwrap();
-        self.read_index += 16;
+        self.advance_reader(16);
         unsafe { u128::from_be(mem::transmute_copy(&num)) }
     }
 
@@ -219,9 +223,9 @@ impl Buf {
     }
 
     pub fn read_bytes(&mut self, length : u32) -> &[u8] {
-        let bytes: &[u8] = &self.buffer[self.read_index as usize..(self.read_index+length) as usize];
-        self.read_index += length;
-        bytes
+        let range = self.read_index as usize..(self.read_index+length) as usize;
+        self.advance_reader(length);
+        &self.buffer[range]
     }
 
     pub fn read_sized_string(&mut self) -> &str {
@@ -295,6 +299,7 @@ impl Buf {
 
     pub fn reset_reader(&mut self) {
         self.read_index = self.read_mark;
+        self.advance_reader(0)
     }
 
     pub fn mark_writer(&mut self) {
@@ -303,14 +308,17 @@ impl Buf {
 
     pub fn reset_writer(&mut self) {
         self.write_index = self.write_mark;
+        self.advance_writer(0);
     }
 
     pub fn set_reader_index(&mut self, index : u32) {
         self.read_index = index;
+        self.advance_reader(0);
     }
 
     pub fn set_writer_index(&mut self, index : u32) {
         self.write_index = index;
+        self.advance_writer(0);
     }
 
     pub fn get_reader_index(&self) -> u32 {
@@ -332,6 +340,20 @@ impl Buf {
             4
         } else {
             5
+        }
+    }
+
+    pub fn advance_writer(&mut self, distance: u32) {
+        self.write_index += distance;
+        if self.write_index > self.buffer.len() as u32 {
+            panic!("write index exceeded buffer length")
+        }
+    }
+
+    pub fn advance_reader(&mut self, distance: u32) {
+        self.read_index += distance;
+        if self.read_index > self.write_index as u32 {
+            panic!("read index exceeded write index")
         }
     }
 }
