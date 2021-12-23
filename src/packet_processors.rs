@@ -77,18 +77,8 @@ pub fn compress_packet(packet: &Buf, compressor: &mut Compressor, compression_bu
     compression_buffer.ensure_writable(compressor.zlib_compress_bound(packet.get_writer_index() as usize) as u32);
 
     //compress
-    match compressor.zlib_compress(&packet.buffer, &mut compression_buffer.buffer) {
-        Ok(written) => {
-            compression_buffer.set_writer_index(written as u32);
-        }
-        Err(why) => {
-            return match why {
-                CompressionError::InsufficientSpace => {
-                    Err("Not enough space in compression buffer".into())
-                }
-            }
-        }
-    }
+    let written =  compressor.zlib_compress(&packet.buffer, &mut compression_buffer.buffer)?;
+    compression_buffer.set_writer_index(written as u32);
 
     Ok(())
 }

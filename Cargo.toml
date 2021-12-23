@@ -12,6 +12,6 @@ debug = 2
 [dependencies]
 mio = { version = "0.7.11", features = ["os-poll", "net"] }
 # flate2 = { version = "1.0.19", features = ["zlib"], default-features = false }
-libdeflater = "0.7.3"
+libdeflater = "0.7.4"
 num_cpus = "1.13.0"
 rand = "0.8.3"
