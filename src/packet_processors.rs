@@ -1,7 +1,6 @@
 use crate::packet_utils::Buf;
-use libdeflater::{CompressionError, Compressor};
-use crate::states::login;
-use crate::states::play;
+use libdeflater::Compressor;
+use crate::states::{login, status, play};
 use crate::{Bot, Compression, Error};
 
 pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression);
@@ -21,8 +20,17 @@ pub fn lookup_packet(state: u8, packet: u8) -> Option<Packet> {
             }
         }
 
-        // play
+        // status
         1 => {
+            match packet {
+                0x00 => return Some(status::process_status_response),
+                0x01 => return Some(status::process_pong),
+                _ => {}
+            }
+        }
+
+        // play
+        2 => {
             match packet {
                 0x21 => return Some(play::process_keep_alive_packet),
                 0x26 => return Some(play::process_join_game),

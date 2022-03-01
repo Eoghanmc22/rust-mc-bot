@@ -10,7 +10,7 @@ use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
 use mio::net::TcpStream;
-use crate::states::login;
+use crate::states::{login, status};
 use crate::packet_utils::Buf;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
