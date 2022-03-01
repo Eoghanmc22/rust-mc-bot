@@ -7,20 +7,22 @@ pub fn write_handshake_packet(protocol_version: u32,
                           server_port: u16,
                           next_state: u32) -> Buf {
     let mut buf = Buf::with_length((1 + 4 + server_address.len() + 2 + 4) as u32);
-    buf.write_packet_id(0);
+    buf.write_packet_id(0x00);
 
     buf.write_var_u32(protocol_version);
     buf.write_sized_str(&server_address);
     buf.write_u16(server_port);
     buf.write_var_u32(next_state);
+
     buf
 }
 
 pub fn write_login_start_packet(username: &String) -> Buf {
     let mut buf = Buf::with_length(1+username.len() as u32);
-    buf.write_packet_id(0);
+    buf.write_packet_id(0x00);
 
     buf.write_sized_str(&username);
+
     buf
 }
 
@@ -30,7 +32,7 @@ pub fn write_login_start_packet(username: &String) -> Buf {
 pub fn process_login_success_packet(buffer : &mut Buf, mut bot : &mut Bot, _compression: &mut Compression) {
     let _uuid = buffer.read_u128();
     let _name = buffer.read_sized_string();
-    bot.state = 1;
+    bot.state = 2;
 }
 
 //0x03

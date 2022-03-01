@@ -45,6 +45,7 @@ pub fn write_tele_confirm(id : u32) -> Buf {
     buf.write_packet_id(0x00);
 
     buf.write_var_u32(id);
+
     buf
 }
 
@@ -53,6 +54,7 @@ pub fn write_keep_alive_packet(id : u64) -> Buf {
     buf.write_packet_id(0x0F);
 
     buf.write_u64(id);
+
     buf
 }
 
