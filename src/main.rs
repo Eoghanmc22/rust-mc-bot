@@ -3,7 +3,7 @@ mod packet_processors;
 mod net;
 mod states;
 
-use std::{net::ToSocketAddrs, env};
+use std::{net::ToSocketAddrs, env, thread};
 use std::io;
 use mio::{Poll, Events, Token, Interest, event, Registry};
 use std::net::SocketAddr;
@@ -15,9 +15,12 @@ use crate::packet_utils::Buf;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
 use libdeflater::{CompressionLvl, Compressor, Decompressor};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
+use crate::play::write_chat_message;
 
 const SHOULD_MOVE: bool = true;
 
@@ -31,12 +34,12 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 3 {
+    if args.len() < 4 {
         let name = args.get(0).unwrap();
         #[cfg(unix)]
-        println!("usage: {} <ip:port or path> <count> [threads]", name);
+        println!("usage: {} <ip:port or path> <count> [threads] [spam text]", name);
         #[cfg(not(unix))]
-        println!("usage: {} <ip:port> <count> [threads]", name);
+        println!("usage: {} <ip:port> <count> [threads] [spam text]", name);
         println!("example: {} localhost:25565 500", name);
         #[cfg(unix)]
         println!("example: {} unix:///path/to/socket 500", name);
@@ -46,6 +49,7 @@ fn main() -> io::Result<()> {
     let arg1 = args.get(1).unwrap();
     let arg2 = args.get(2).unwrap();
     let arg3 = args.get(3);
+    let arg4 = args.get(4);
 
     let mut addrs = None;
 
@@ -69,12 +73,23 @@ fn main() -> io::Result<()> {
 
     let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
     let mut cpus = 1.max(num_cpus::get()) as u32;
+    let mut spam_text = "".to_owned();
 
     if let Option::Some(str) = arg3 {
         cpus = str.parse().expect(&format!("{} is not a number", arg2));
     }
 
+    if let Option::Some(str) = arg4 {
+        spam_text = str.chars().take(255).collect();
+    }
+
     println!("cpus: {}", cpus);
+    // if spam_text != "" println
+    if spam_text != "" {
+        println!("spam text: {}", spam_text);
+    } else {
+        println!("No spam text!");
+    }
 
     let count_per_thread = count/cpus;
     let mut extra = count%cpus;
@@ -84,6 +99,7 @@ fn main() -> io::Result<()> {
         let mut threads = Vec::new();
         for _ in 0..cpus {
             let mut count = count_per_thread;
+            let mut spam = spam_text.clone();
 
             if extra > 0 {
                 extra -= 1;
@@ -91,7 +107,7 @@ fn main() -> io::Result<()> {
             }
 
             let addrs = addrs.clone();
-            threads.push(std::thread::spawn(move || { start_bots(count, addrs, names_used, cpus) }));
+            threads.push(std::thread::spawn(move || { start_bots(count, addrs, names_used, cpus,spam.to_owned()) }));
 
             names_used += count;
         }
@@ -123,7 +139,7 @@ pub struct Bot {
     pub joined : bool
 }
 
-pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
+pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, spam_text: String) {
     if count == 0 {
         return;
     }
@@ -132,7 +148,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     let mut events = Events::with_capacity((count * 5) as usize);
     let mut map = HashMap::new();
 
-    fn start_bot(bot : &mut Bot, compression: &mut Compression) {
+    fn start_bot(bot: &mut Bot, compression: &mut Compression) {
         bot.joined = true;
         //login sequence
         let buf = login::write_handshake_packet(PROTOCOL_VERSION, "".to_string(), 0, 2);
@@ -204,6 +220,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                 bot.x += rand::random::<f64>()*1.0-0.5;
                 bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
+                bot.send_packet(play::write_chat_message(spam_text.clone()), &mut compression);
             }
             if bot.kicked {
                 to_remove.push(bot.token);
