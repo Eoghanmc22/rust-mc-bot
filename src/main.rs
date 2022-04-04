@@ -216,7 +216,9 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, sp
                 bot.x += rand::random::<f64>()*1.0-0.5;
                 bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
-                bot.send_packet(play::write_chat_message(spam_text.clone()), &mut compression);
+                if spam_text.len() > 0 {
+                    bot.send_packet(play::write_chat_message(spam_text.clone()), &mut compression);
+                }
             }
             if bot.kicked {
                 to_remove.push(bot.token);
