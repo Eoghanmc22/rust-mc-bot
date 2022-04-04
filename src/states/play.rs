@@ -40,6 +40,15 @@ pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot, compression: &mut Com
     bot.teleported = true;
 }
 
+pub fn write_chat_message(message: String) -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x03);
+
+    buf.write_sized_str(&message);
+
+    buf
+}
+
 pub fn write_tele_confirm(id : u32) -> Buf {
     let mut buf = Buf::new();
     buf.write_packet_id(0x00);
