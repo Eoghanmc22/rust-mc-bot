@@ -3,24 +3,21 @@ mod packet_processors;
 mod net;
 mod states;
 
-use std::{net::ToSocketAddrs, env, thread};
+use std::{net::ToSocketAddrs, env};
 use std::io;
 use mio::{Poll, Events, Token, Interest, event, Registry};
 use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
 use mio::net::TcpStream;
-use crate::states::{login, status};
-use crate::packet_utils::Buf;
+use states::login;
+use packet_utils::Buf;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
 use libdeflater::{CompressionLvl, Compressor, Decompressor};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
-use crate::play::write_chat_message;
 
 const SHOULD_MOVE: bool = true;
 
@@ -84,7 +81,6 @@ fn main() -> io::Result<()> {
     }
 
     println!("cpus: {}", cpus);
-    // if spam_text != "" println
     if spam_text != "" {
         println!("spam text: {}", spam_text);
     } else {
@@ -99,7 +95,7 @@ fn main() -> io::Result<()> {
         let mut threads = Vec::new();
         for _ in 0..cpus {
             let mut count = count_per_thread;
-            let mut spam = spam_text.clone();
+            let spam = spam_text.clone();
 
             if extra > 0 {
                 extra -= 1;
