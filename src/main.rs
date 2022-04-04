@@ -3,7 +3,7 @@ mod packet_processors;
 mod net;
 mod states;
 
-use std::{net::ToSocketAddrs, env};
+use std::{net::ToSocketAddrs, env, thread};
 use std::io;
 use mio::{Poll, Events, Token, Interest, event, Registry};
 use std::net::SocketAddr;
@@ -31,7 +31,7 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() < 4 {
+    if args.len() < 3 {
         let name = args.get(0).unwrap();
         #[cfg(unix)]
         println!("usage: {} <ip:port or path> <count> [threads] [spam text]", name);
