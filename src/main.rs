@@ -210,6 +210,9 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, sp
         }
 
         let mut to_remove = Vec::new();
+        let mut spam: Vec<String> = Vec::new();
+        spam.push(spam_text.clone());
+        // how do I cast something?
 
         for bot in map.values_mut() {
             if SHOULD_MOVE && bot.teleported {
@@ -217,7 +220,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, sp
                 bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
                 if spam_text.len() > 0 {
-                    bot.send_packet(play::write_chat_message(spam_text.clone()), &mut compression);
+                    bot.send_packet(play::write_chat_message(spam.get(0).unwrap().to_string()), &mut compression);
                 }
             }
             if bot.kicked {
