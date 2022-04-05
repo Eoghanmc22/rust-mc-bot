@@ -10,7 +10,8 @@ pub fn process_kick(buffer : &mut Buf, bot : &mut Bot, _compression: &mut Compre
     bot.kicked = true;
 }
 
-pub fn process_join_game(_buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {
+pub fn process_join_game(buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {
+    bot.entity_id = buffer.read_u32();
     bot.send_packet(crate::play::write_client_settings(), compression);
 }
 
@@ -38,6 +39,44 @@ pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot, compression: &mut Com
     }
     bot.send_packet(write_tele_confirm(buffer.read_var_u32().0), compression);
     bot.teleported = true;
+}
+
+pub fn write_chat_message(message: &str) -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x03);
+
+    buf.write_sized_str(message);
+
+    buf
+}
+
+pub fn write_animation(off_hand: bool) -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x2C);
+
+    buf.write_var_u32(if off_hand { 1 } else { 0 });
+
+    buf
+}
+
+pub fn write_entity_action(entity_id: u32, action_id: u32, jump_boost: u32) -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x1B);
+
+    buf.write_var_u32(entity_id);
+    buf.write_var_u32(action_id);
+    buf.write_var_u32(jump_boost);
+
+    buf
+}
+
+pub fn write_held_slot(slot: u16) -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x25);
+
+    buf.write_u16(slot);
+
+    buf
 }
 
 pub fn write_tele_confirm(id : u32) -> Buf {

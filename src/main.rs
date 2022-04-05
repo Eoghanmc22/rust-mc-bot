@@ -10,11 +10,12 @@ use std::net::SocketAddr;
 use states::play;
 use std::collections::HashMap;
 use mio::net::TcpStream;
-use crate::states::{login, status};
+use crate::states::login;
 use crate::packet_utils::Buf;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
 use libdeflater::{CompressionLvl, Compressor, Decompressor};
+use rand::prelude::*;
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
@@ -24,7 +25,9 @@ const SHOULD_MOVE: bool = true;
 const PROTOCOL_VERSION: u32 = 758;
 
 #[cfg(unix)]
-const UDS_PREFIX : &str = "unix://";
+const UDS_PREFIX: &str = "unix://";
+
+const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -112,6 +115,8 @@ pub struct Bot {
     pub token : Token,
     pub stream : Stream,
     pub name : String,
+    pub id : u32,
+    pub entity_id : u32,
     pub compression_threshold: i32,
     pub state: u8,
     pub kicked : bool,
@@ -132,7 +137,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     let mut events = Events::with_capacity((count * 5) as usize);
     let mut map = HashMap::new();
 
-    fn start_bot(bot : &mut Bot, compression: &mut Compression) {
+    fn start_bot(bot: &mut Bot, compression: &mut Compression) {
         bot.joined = true;
         //login sequence
         let buf = login::write_handshake_packet(PROTOCOL_VERSION, "".to_string(), 0, 2);
@@ -154,6 +159,9 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
 
     let dur = Duration::from_millis(50);
 
+    let mut tick_counter = 0;
+    let action_tick = 4;
+
     'main: loop {
         if bots_joined < count {
             let registry = poll.registry();
@@ -161,7 +169,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                 let token = Token(bot as usize);
                 let name = "Bot_".to_owned() + &(name_offset + bot).to_string();
 
-                let mut bot = Bot { token, stream : addrs.connect(), name, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
+                let mut bot = Bot { token, stream : addrs.connect(), name, id: bot, entity_id: 0, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
                 registry.register(&mut bot.stream, bot.token, Interest::READABLE | Interest::WRITABLE).expect("could not register");
 
                 map.insert(token, bot);
@@ -192,11 +200,6 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
             }
         }
 
-        let elapsed = ins.elapsed();
-        if elapsed < dur {
-            std::thread::sleep(dur-elapsed);
-        }
-
         let mut to_remove = Vec::new();
 
         for bot in map.values_mut() {
@@ -205,6 +208,34 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                 bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
             }
+
+            if (tick_counter + bot.id) % action_tick == 0 {
+                match rand::thread_rng().gen_range(0..=4u8) {
+                    0 => {
+                        // Send chat
+                        bot.send_packet(play::write_chat_message(MESSAGES.choose(&mut rand::thread_rng()).unwrap()), &mut compression);
+                    }
+                    1 => {
+                        // Punch animation
+                        bot.send_packet(play::write_animation(rand::random()), &mut compression);
+                    }
+                    2 => {
+                        // Sneak
+                        bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
+                    }
+                    3 => {
+                        // Sprint
+                        bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
+                    }
+                    4 => {
+                        // Held item
+                        bot.send_packet(play::write_held_slot(rand::thread_rng().gen_range(0..9)), &mut compression);
+                    }
+                    _ => {}
+                }
+
+            }
+
             if bot.kicked {
                 to_remove.push(bot.token);
             }
@@ -212,6 +243,13 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
 
         for bot in to_remove {
             let _ = map.remove(&bot);
+        }
+
+        tick_counter += 1;
+
+        let elapsed = ins.elapsed();
+        if elapsed < dur {
+            std::thread::sleep(dur-elapsed);
         }
     }
 }
