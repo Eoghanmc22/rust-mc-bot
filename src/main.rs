@@ -207,33 +207,33 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                 bot.x += rand::random::<f64>()*1.0-0.5;
                 bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
-            }
 
-            if (tick_counter + bot.id) % action_tick == 0 {
-                match rand::thread_rng().gen_range(0..=4u8) {
-                    0 => {
-                        // Send chat
-                        bot.send_packet(play::write_chat_message(MESSAGES.choose(&mut rand::thread_rng()).unwrap()), &mut compression);
+                if (tick_counter + bot.id) % action_tick == 0 {
+                    match rand::thread_rng().gen_range(0..=4u8) {
+                        0 => {
+                            // Send chat
+                            bot.send_packet(play::write_chat_message(MESSAGES.choose(&mut rand::thread_rng()).unwrap()), &mut compression);
+                        }
+                        1 => {
+                            // Punch animation
+                            bot.send_packet(play::write_animation(rand::random()), &mut compression);
+                        }
+                        2 => {
+                            // Sneak
+                            bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
+                        }
+                        3 => {
+                            // Sprint
+                            bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
+                        }
+                        4 => {
+                            // Held item
+                            bot.send_packet(play::write_held_slot(rand::thread_rng().gen_range(0..9)), &mut compression);
+                        }
+                        _ => {}
                     }
-                    1 => {
-                        // Punch animation
-                        bot.send_packet(play::write_animation(rand::random()), &mut compression);
-                    }
-                    2 => {
-                        // Sneak
-                        bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
-                    }
-                    3 => {
-                        // Sprint
-                        bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
-                    }
-                    4 => {
-                        // Held item
-                        bot.send_packet(play::write_held_slot(rand::thread_rng().gen_range(0..9)), &mut compression);
-                    }
-                    _ => {}
+
                 }
-
             }
 
             if bot.kicked {
