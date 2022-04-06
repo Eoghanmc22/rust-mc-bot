@@ -163,6 +163,8 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     let action_tick = 4;
 
     'main: loop {
+        let ins = Instant::now();
+
         if bots_joined < count {
             let registry = poll.registry();
             for bot in bots_joined..(bots_per_tick + bots_joined).min(count) {
@@ -178,7 +180,6 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
             }
         }
 
-        let ins = Instant::now();
         poll.poll(&mut events, Some(dur)).expect("couldn't poll");
         for event in events.iter() {
             if let Some(bot) = map.get_mut(&event.token()) {
@@ -198,6 +199,11 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                     }
                 }
             }
+        }
+
+        let elapsed = ins.elapsed();
+        if elapsed < dur {
+            std::thread::sleep(dur - elapsed);
         }
 
         let mut to_remove = Vec::new();
@@ -246,11 +252,6 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
         }
 
         tick_counter += 1;
-
-        let elapsed = ins.elapsed();
-        if elapsed < dur {
-            std::thread::sleep(dur-elapsed);
-        }
     }
 }
 
