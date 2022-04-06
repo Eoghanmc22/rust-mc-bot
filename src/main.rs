@@ -139,6 +139,10 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
 
     fn start_bot(bot: &mut Bot, compression: &mut Compression) {
         bot.joined = true;
+
+        // socket ops
+        bot.stream.set_ops();
+
         //login sequence
         let buf = login::write_handshake_packet(PROTOCOL_VERSION, "".to_string(), 0, 2);
         bot.send_packet(buf, compression);
@@ -280,6 +284,17 @@ pub enum Stream {
     #[cfg(unix)]
     UNIX(UnixStream),
     TCP(TcpStream)
+}
+
+impl Stream {
+    pub fn set_ops(&mut self) {
+        match self {
+            Stream::TCP(s) => {
+                s.set_nodelay(true).unwrap();
+            }
+            _ => {}
+        }
+    }
 }
 
 impl Read for Stream {
