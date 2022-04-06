@@ -3,7 +3,7 @@ mod packet_processors;
 mod net;
 mod states;
 
-use std::{net::ToSocketAddrs, env, thread};
+use std::{net::ToSocketAddrs, env};
 use std::io;
 use mio::{Poll, Events, Token, Interest, event, Registry};
 use std::net::SocketAddr;
@@ -34,9 +34,9 @@ fn main() -> io::Result<()> {
     if args.len() < 3 {
         let name = args.get(0).unwrap();
         #[cfg(unix)]
-        println!("usage: {} <ip:port or path> <count> [threads] [spam text]", name);
+        println!("usage: {} <ip:port or path> <count> [threads] [spam text] [ticks between chat messages]", name);
         #[cfg(not(unix))]
-        println!("usage: {} <ip:port> <count> [threads] [spam text]", name);
+        println!("usage: {} <ip:port> <count> [threads] [spam text] [time between chat messages]", name);
         println!("example: {} localhost:25565 500", name);
         #[cfg(unix)]
         println!("example: {} unix:///path/to/socket 500", name);
@@ -47,6 +47,7 @@ fn main() -> io::Result<()> {
     let arg2 = args.get(2).unwrap();
     let arg3 = args.get(3);
     let arg4 = args.get(4);
+    let arg5 = args.get(5);
 
     let mut addrs = None;
 
@@ -70,6 +71,7 @@ fn main() -> io::Result<()> {
 
     let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
     let mut cpus = 1.max(num_cpus::get()) as u32;
+    let mut time_between_messages = 20; // one second
     let mut spam_text = "".to_owned();
 
     if let Option::Some(str) = arg3 {
@@ -80,7 +82,12 @@ fn main() -> io::Result<()> {
         spam_text = str.chars().take(255).collect();
     }
 
+    if let Option::Some(str) = arg5 {
+        time_between_messages = str.parse().expect(&format!("{} is not a number", arg5.unwrap()));
+    }
+
     println!("cpus: {}", cpus);
+    println!("message frequency (in ticks): {}", time_between_messages);
     if spam_text != "" {
         println!("spam text: {}", spam_text);
     } else {
@@ -103,7 +110,7 @@ fn main() -> io::Result<()> {
             }
 
             let addrs = addrs.clone();
-            threads.push(std::thread::spawn(move || { start_bots(count, addrs, names_used, cpus,spam.to_owned()) }));
+            threads.push(std::thread::spawn(move || { start_bots(count, addrs, names_used, cpus,spam.to_owned(), time_between_messages) }));
 
             names_used += count;
         }
@@ -135,7 +142,7 @@ pub struct Bot {
     pub joined : bool
 }
 
-pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, spam_text: String) {
+pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, spam_text: String, time_between_messages: u32) {
     if count == 0 {
         return;
     }
@@ -153,6 +160,8 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, sp
         let buf = login::write_login_start_packet(&bot.name);
         bot.send_packet(buf, compression);
 
+        let buf =
+
         println!("bot \"{}\" joined", bot.name);
     }
 
@@ -165,8 +174,10 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, sp
     let mut compression = Compression { compressor: Compressor::new(CompressionLvl::fastest()), decompressor: Decompressor::new() };
 
     let dur = Duration::from_millis(50);
+    let mut ticks_since_last_message: u32 = 0;
 
     'main: loop {
+        ticks_since_last_message += 1;
         if bots_joined < count {
             let registry = poll.registry();
             for bot in bots_joined..(bots_per_tick + bots_joined).min(count) {
@@ -210,17 +221,15 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32, sp
         }
 
         let mut to_remove = Vec::new();
-        let mut spam: Vec<String> = Vec::new();
-        spam.push(spam_text.clone());
-        // how do I cast something?
 
         for bot in map.values_mut() {
             if SHOULD_MOVE && bot.teleported {
                 bot.x += rand::random::<f64>()*1.0-0.5;
                 bot.z += rand::random::<f64>()*1.0-0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
-                if spam_text.len() > 0 {
-                    bot.send_packet(play::write_chat_message(spam.get(0).unwrap().to_string()), &mut compression);
+                if spam_text.len() > 0 && ticks_since_last_message >= time_between_messages {
+                    ticks_since_last_message = 0;
+                    bot.send_packet(play::write_chat_message(&spam_text), &mut compression);
                 }
             }
             if bot.kicked {
