@@ -159,7 +159,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     let mut packet_buf = Buf::with_length(2000);
     let mut uncompressed_buf = Buf::with_length(2000);
 
-    let mut compression = Compression { compressor: Compressor::new(CompressionLvl::fastest()), decompressor: Decompressor::new() };
+    let mut compression = Compression { compressor: Compressor::new(CompressionLvl::default()), decompressor: Decompressor::new() };
 
     let dur = Duration::from_millis(50);
 
