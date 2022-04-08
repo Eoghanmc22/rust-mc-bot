@@ -234,7 +234,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                         }
                         3 => {
                             // Sprint
-                            bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
+                            bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 3 } else { 4 }, 0), &mut compression);
                         }
                         4 => {
                             // Held item
