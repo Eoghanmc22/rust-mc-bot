@@ -19,6 +19,7 @@ use anyhow::{bail, Context};
 use libdeflater::{CompressionLvl, Compressor, Decompressor};
 use rand::prelude::*;
 use clap::Parser;
+use env_logger::Env;
 use human_panic::setup_panic;
 use log::info;
 
@@ -36,7 +37,7 @@ const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
 
 fn main() -> anyhow::Result<()> {
     setup_panic!();
-    env_logger::init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let Args { server, count, threads } = Args::parse();
 
