@@ -1,7 +1,7 @@
 use crate::packet_utils::Buf;
 use libdeflater::Compressor;
 use crate::states::{login, status, play};
-use crate::{Bot, Compression, Error};
+use crate::{Bot, Compression};
 
 pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression);
 
@@ -66,7 +66,7 @@ impl PacketFramer {
 }
 
 impl PacketCompressor {
-    pub fn process_write(mut buffer: Buf, bot: &Bot, compression: &mut Compression) -> Result<Buf, Error> {
+    pub fn process_write(mut buffer: Buf, bot: &Bot, compression: &mut Compression) -> anyhow::Result<Buf> {
         if buffer.get_writer_index() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
             compress_packet(&mut buffer, &mut compression.compressor, &mut buf)?;
@@ -80,7 +80,7 @@ impl PacketCompressor {
     }
 }
 
-pub fn compress_packet(packet: &Buf, compressor: &mut Compressor, compression_buffer: &mut Buf) -> Result<(), Error> {
+pub fn compress_packet(packet: &Buf, compressor: &mut Compressor, compression_buffer: &mut Buf) -> anyhow::Result<()> {
     compression_buffer.write_var_u32(packet.get_writer_index());
     compression_buffer.ensure_writable(compressor.zlib_compress_bound(packet.get_writer_index() as usize) as u32);
 

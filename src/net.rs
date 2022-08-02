@@ -1,6 +1,6 @@
 use crate::packet_utils::Buf;
 use std::io::{Write, Read, ErrorKind};
-use crate::{packet_processors, Bot, Error, Compression};
+use crate::{packet_processors, Bot, Compression};
 
 pub fn read_socket(bot: &mut Bot, packet: &mut Buf) -> bool {
     if bot.kicked {
@@ -160,7 +160,7 @@ impl Bot {
     }
 }
 
-pub fn decompress_packet(real_length: u32, working_buf: &[u8], compression: &mut Compression, compression_buffer: &mut Buf) -> Result<(), Error> {
+pub fn decompress_packet(real_length: u32, working_buf: &[u8], compression: &mut Compression, compression_buffer: &mut Buf) -> anyhow::Result<()> {
     compression_buffer.ensure_writable(real_length);
     let range = compression_buffer.get_writer_index() as usize..;
 

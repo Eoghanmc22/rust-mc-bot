@@ -4,14 +4,21 @@ version = "0.1.0"
 authors = ["Eoghanmc22 <eoghanmc@icloud.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [profile.release]
 debug = 2
 
 [dependencies]
-mio = { version = "0.8.2", features = ["os-poll", "net"] }
-# flate2 = { version = "1.0.19", features = ["zlib"], default-features = false }
-libdeflater = "0.8.0"
-num_cpus = "1.13.1"
-rand = "0.8.5"
+# Networking
+mio = { version = "0.8", features = ["os-poll", "net"] }
+libdeflater = "0.10"
+
+# UX
+clap = { version = "3.2", features = ["derive"] }
+indicatif = "0.17"
+human-panic = "1.0"
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.8"
+
+# Misc
+rand = "0.8"

@@ -3,25 +3,25 @@ use crate::{Bot, Compression};
 
 //c2s
 pub fn write_handshake_packet(protocol_version: u32,
-                          server_address: String,
+                          server_address: &str,
                           server_port: u16,
                           next_state: u32) -> Buf {
     let mut buf = Buf::with_length((1 + 4 + server_address.len() + 2 + 4) as u32);
     buf.write_packet_id(0x00);
 
     buf.write_var_u32(protocol_version);
-    buf.write_sized_str(&server_address);
+    buf.write_sized_str(server_address);
     buf.write_u16(server_port);
     buf.write_var_u32(next_state);
 
     buf
 }
 
-pub fn write_login_start_packet(username: &String) -> Buf {
+pub fn write_login_start_packet(username: &str) -> Buf {
     let mut buf = Buf::with_length(1+username.len() as u32);
     buf.write_packet_id(0x00);
 
-    buf.write_sized_str(&username);
+    buf.write_sized_str(username);
 
     buf
 }
