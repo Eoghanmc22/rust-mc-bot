@@ -12,7 +12,7 @@ pub fn process_kick(buffer : &mut Buf, bot : &mut Bot, _compression: &mut Compre
 
 pub fn process_join_game(buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {
     bot.entity_id = buffer.read_u32();
-    bot.send_packet(crate::play::write_client_settings(), compression);
+    bot.send_packet(write_client_settings(), compression);
 }
 
 pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot, compression: &mut Compression) {

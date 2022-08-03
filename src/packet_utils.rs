@@ -3,17 +3,20 @@ use std::{mem, io};
 use std::convert::TryInto;
 use std::io::Write;
 
+#[derive(Default)]
 pub struct Buf {
     pub buffer: Vec<u8>,
+
     write_index: u32,
     read_index: u32,
+
     write_mark: u32,
     read_mark: u32,
 }
 
 impl Buf {
-    pub fn new() -> Buf {
-        Buf { buffer: Vec::new(), write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+    pub fn new() -> Self {
+        Default::default()
     }
     pub fn with_length(length: u32) -> Buf {
         Buf { buffer: vec![0u8; length as usize], write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
@@ -179,11 +182,7 @@ impl Buf {
     }
 
     pub fn read_bool(&mut self) -> bool {
-        if self.read_byte() == 1 {
-            true
-        } else {
-            false
-        }
+        self.read_byte() != 0
     }
 
     pub fn read_u16(&mut self) -> u16 {

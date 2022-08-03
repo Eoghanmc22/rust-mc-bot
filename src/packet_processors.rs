@@ -69,7 +69,7 @@ impl PacketCompressor {
     pub fn process_write(mut buffer: Buf, bot: &Bot, compression: &mut Compression) -> anyhow::Result<Buf> {
         if buffer.get_writer_index() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
-            compress_packet(&mut buffer, &mut compression.compressor, &mut buf)?;
+            compress_packet(&buffer, &mut compression.compressor, &mut buf)?;
             Ok(buf)
         } else {
             let mut buf = Buf::new();

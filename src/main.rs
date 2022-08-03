@@ -88,20 +88,20 @@ pub struct Compression {
 }
 
 pub struct Bot {
-    pub token : Token,
-    pub stream : Stream,
-    pub name : String,
-    pub id : u32,
-    pub entity_id : u32,
+    pub token: Token,
+    pub stream: Stream,
+    pub name: String,
+    pub id: u32,
+    pub entity_id: u32,
     pub compression_threshold: i32,
     pub state: u8,
-    pub kicked : bool,
-    pub teleported : bool,
-    pub x : f64,
-    pub y : f64,
-    pub z : f64,
-    pub buffering_buf : Buf,
-    pub joined : bool
+    pub kicked: bool,
+    pub teleported: bool,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub buffering_buf: Buf,
+    pub joined: bool
 }
 
 pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {

@@ -18,7 +18,7 @@ pub fn write_handshake_packet(protocol_version: u32,
 }
 
 pub fn write_login_start_packet(username: &str) -> Buf {
-    let mut buf = Buf::with_length(1+username.len() as u32);
+    let mut buf = Buf::with_length(1 + username.len() as u32);
     buf.write_packet_id(0x00);
 
     buf.write_sized_str(username);
