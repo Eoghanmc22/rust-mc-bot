@@ -21,7 +21,7 @@ use rand::prelude::*;
 use clap::Parser;
 use env_logger::Env;
 use human_panic::setup_panic;
-use log::info;
+use log::{error, info};
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
@@ -36,7 +36,7 @@ const UDS_PREFIX: &str = "unix://";
 const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
 
 fn main() -> anyhow::Result<()> {
-    setup_panic!();
+    //setup_panic!();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let Args { server, count, threads } = Args::parse();
@@ -151,6 +151,13 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
         poll.poll(&mut events, Some(Duration::ZERO)).expect("Poll events");
         for event in &events {
             if let Some(bot) = bots.get_mut(&event.token()) {
+                // Handle unexpected socket close
+                if event.is_write_closed() || event.is_read_closed() {
+                    bot.kicked = true;
+
+                    error!("socket closed");
+                }
+
                 // Set up bot if needed
                 if event.is_writable() && !bot.joined && !bot.kicked {
                     // Set socket ops
