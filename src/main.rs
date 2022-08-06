@@ -36,7 +36,6 @@ const UDS_PREFIX: &str = "unix://";
 const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
 
 fn main() -> anyhow::Result<()> {
-    //setup_panic!();
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
     let Args { server, count, threads } = Args::parse();

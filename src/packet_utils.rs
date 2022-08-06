@@ -19,13 +19,22 @@ impl Buf {
         Default::default()
     }
     pub fn with_length(length: u32) -> Buf {
-        Buf { buffer: vec![0u8; length as usize], write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+        Buf {
+            buffer: vec![0u8; length as usize],
+            ..Default::default()
+        }
     }
     pub fn with_capacity(capacity: u32) -> Buf {
-        Buf { buffer: Vec::with_capacity(capacity as usize), write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+        Buf {
+            buffer: Vec::with_capacity(capacity as usize),
+            ..Default::default()
+        }
     }
     pub fn from_vec(vec : Vec<u8>) -> Buf {
-        Buf { buffer: vec, write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+        Buf {
+            buffer: vec,
+            ..Default::default()
+        }
     }
 
     pub fn is_nonoverlapping<T>(src: *const T, dst: *const T, count: usize) -> bool {
