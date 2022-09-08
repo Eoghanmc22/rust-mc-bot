@@ -22,6 +22,8 @@ pub fn write_login_start_packet(username: &String) -> Buf {
     buf.write_packet_id(0x00);
 
     buf.write_sized_str(&username);
+    buf.write_bool(false);
+    buf.write_bool(false);
 
     buf
 }
@@ -32,6 +34,8 @@ pub fn write_login_start_packet(username: &String) -> Buf {
 pub fn process_login_success_packet(buffer : &mut Buf, mut bot : &mut Bot, _compression: &mut Compression) {
     let _uuid = buffer.read_u128();
     let _name = buffer.read_sized_string();
+    let _properties = buffer.read_var_u32();
+
     bot.state = 2;
 }
 

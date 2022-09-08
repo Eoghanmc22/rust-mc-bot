@@ -22,7 +22,7 @@ use {mio::net::UnixStream, std::path::PathBuf};
 
 const SHOULD_MOVE: bool = true;
 
-const PROTOCOL_VERSION: u32 = 758;
+const PROTOCOL_VERSION: u32 = 760;
 
 #[cfg(unix)]
 const UDS_PREFIX: &str = "unix://";
@@ -136,6 +136,8 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     //todo check used cap
     let mut events = Events::with_capacity((count * 5) as usize);
     let mut map = HashMap::new();
+
+    println!("{:?}", addrs);
 
     fn start_bot(bot: &mut Bot, compression: &mut Compression) {
         bot.joined = true;
@@ -259,7 +261,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Address {
     #[cfg(unix)]
     UNIX(PathBuf),

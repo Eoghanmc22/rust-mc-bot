@@ -41,27 +41,35 @@ pub fn process_teleport(buffer : &mut Buf, bot : &mut Bot, compression: &mut Com
     bot.teleported = true;
 }
 
-pub fn write_chat_message(message: &str) -> Buf {
+pub fn write_chat_message(message: &str) -> Buf { // ClientChatMessagePacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x03);
+    buf.write_packet_id(0x05);
 
     buf.write_sized_str(message);
+
+    // 1.19 signing fields
+    buf.write_u64(0);
+    buf.write_u64(0);
+    buf.write_var_u32(0);
+    buf.write_var_u32(0);
+    buf.write_bool(false);
+    buf.write_bool(false);
 
     buf
 }
 
-pub fn write_animation(off_hand: bool) -> Buf {
+pub fn write_animation(off_hand: bool) -> Buf { // ClientAnimationPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x2C);
+    buf.write_packet_id(0x2F);
 
     buf.write_var_u32(if off_hand { 1 } else { 0 });
 
     buf
 }
 
-pub fn write_entity_action(entity_id: u32, action_id: u32, jump_boost: u32) -> Buf {
+pub fn write_entity_action(entity_id: u32, action_id: u32, jump_boost: u32) -> Buf { // ClientEntityActionPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x1B);
+    buf.write_packet_id(0x1E);
 
     buf.write_var_u32(entity_id);
     buf.write_var_u32(action_id);
@@ -70,16 +78,16 @@ pub fn write_entity_action(entity_id: u32, action_id: u32, jump_boost: u32) -> B
     buf
 }
 
-pub fn write_held_slot(slot: u16) -> Buf {
+pub fn write_held_slot(slot: u16) -> Buf { // ClientHeldItemChangePacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x25);
+    buf.write_packet_id(0x28);
 
     buf.write_u16(slot);
 
     buf
 }
 
-pub fn write_tele_confirm(id : u32) -> Buf {
+pub fn write_tele_confirm(id : u32) -> Buf { // ClientTeleportConfirmPacket
     let mut buf = Buf::new();
     buf.write_packet_id(0x00);
 
@@ -88,9 +96,9 @@ pub fn write_tele_confirm(id : u32) -> Buf {
     buf
 }
 
-pub fn write_keep_alive_packet(id : u64) -> Buf {
+pub fn write_keep_alive_packet(id : u64) -> Buf { // ClientKeepAlivePacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x0F);
+    buf.write_packet_id(0x12);
 
     buf.write_u64(id);
 
@@ -101,9 +109,9 @@ pub fn write_current_pos(bot : &Bot) -> Buf {
     write_pos(bot.x, bot.y, bot.z, 0.0,0.0)
 }
 
-pub fn write_pos(x : f64, y : f64, z : f64, yaw : f32, pitch : f32) -> Buf {
+pub fn write_pos(x : f64, y : f64, z : f64, yaw : f32, pitch : f32) -> Buf { // ClientPlayerPositionAndRotationPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x12);
+    buf.write_packet_id(0x15);
 
     buf.write_f64(x);
     buf.write_f64(y);
@@ -119,9 +127,9 @@ pub fn write_pos(x : f64, y : f64, z : f64, yaw : f32, pitch : f32) -> Buf {
 
 const VIEW_DISTANCE: u8 = 10u8;
 
-pub fn write_client_settings() -> Buf {
+pub fn write_client_settings() -> Buf { // ClientSettingsPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x05);
+    buf.write_packet_id(0x08);
 
     buf.write_sized_str("en_US");
     buf.write_u8(VIEW_DISTANCE);

@@ -32,10 +32,10 @@ pub fn lookup_packet(state: u8, packet: u8) -> Option<Packet> {
         // play
         2 => {
             match packet {
-                0x21 => return Some(play::process_keep_alive_packet),
-                0x26 => return Some(play::process_join_game),
-                0x1A => return Some(play::process_kick),
-                0x38 => return Some(play::process_teleport),
+                0x20 => return Some(play::process_keep_alive_packet), // KEEP_ALIVE
+                0x25 => return Some(play::process_join_game), // JOIN_GAME
+                0x19 => return Some(play::process_kick), // DISCONNECT
+                0x39 => return Some(play::process_teleport), // PLAYER_POSITION_AND_LOOK
                 _ => {}
             }
         }
