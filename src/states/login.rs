@@ -25,7 +25,6 @@ pub fn write_login_start_packet(username: &String) -> Buf {
 
     buf.write_sized_str(&username);
     buf.write_bool(false);
-    buf.write_bool(false);
 
     buf
 }
