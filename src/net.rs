@@ -1,6 +1,6 @@
 use crate::packet_utils::Buf;
-use std::io::{Write, Read, ErrorKind};
-use crate::{packet_processors, Bot, Error, Compression};
+use crate::{packet_processors, Bot, Compression, Error};
+use std::io::{ErrorKind, Read, Write};
 
 pub fn read_socket(bot: &mut Bot, packet: &mut Buf) -> bool {
     if bot.kicked {
@@ -32,7 +32,10 @@ pub fn read_socket(bot: &mut Bot, packet: &mut Buf) -> bool {
 }
 
 pub fn buffer(temp_buf: &mut Buf, buffering_buf: &mut Buf) {
-    buffering_buf.write_bytes(&temp_buf.buffer[temp_buf.get_reader_index() as usize..temp_buf.get_writer_index() as usize]);
+    buffering_buf.write_bytes(
+        &temp_buf.buffer
+            [temp_buf.get_reader_index() as usize..temp_buf.get_writer_index() as usize],
+    );
 }
 
 pub fn unbuffer(temp_buf: &mut Buf, buffering_buf: &mut Buf) {
@@ -42,7 +45,12 @@ pub fn unbuffer(temp_buf: &mut Buf, buffering_buf: &mut Buf) {
     }
 }
 
-pub fn process_packet(bot: &mut Bot, packet_buf: &mut Buf, decompression_buf: &mut Buf, compression: &mut Compression) {
+pub fn process_packet(
+    bot: &mut Bot,
+    packet_buf: &mut Buf,
+    decompression_buf: &mut Buf,
+    compression: &mut Compression,
+) {
     packet_buf.set_reader_index(0);
     packet_buf.set_writer_index(0);
 
@@ -54,7 +62,9 @@ pub fn process_packet(bot: &mut Bot, packet_buf: &mut Buf, decompression_buf: &m
         // Reallocate if full
         if packet_buf.get_writer_index() == len as u32 {
             packet_buf.buffer.reserve(len);
-            unsafe { packet_buf.buffer.set_len(len * 2); }
+            unsafe {
+                packet_buf.buffer.set_len(len * 2);
+            }
         }
     }
     if bot.kicked {
@@ -84,7 +94,7 @@ pub fn process_packet(bot: &mut Bot, packet_buf: &mut Buf, decompression_buf: &m
 
         // Handle incomplete packet
         if packet_buf.get_writer_index() < size as u32 + packet_buf.get_reader_index() {
-            packet_buf.set_reader_index(packet_buf.get_reader_index()-tuple.1);
+            packet_buf.set_reader_index(packet_buf.get_reader_index() - tuple.1);
             buffer(packet_buf, &mut bot.buffering_buf);
             break;
         }
@@ -101,23 +111,36 @@ pub fn process_packet(bot: &mut Bot, packet_buf: &mut Buf, decompression_buf: &m
 
                 {
                     let start = packet_buf.get_reader_index() as usize;
-                    let end = packet_buf.get_reader_index() as usize + size - real_length_tuple.1 as usize;
+                    let end = packet_buf.get_reader_index() as usize + size
+                        - real_length_tuple.1 as usize;
 
                     if start > end {
-                        println!("s {} > e {}, size: {}, tl: {}, ri: {}, wi: {}", start, end, size, real_length_tuple.1, packet_buf.get_reader_index(), packet_buf.get_writer_index());
+                        println!(
+                            "s {} > e {}, size: {}, tl: {}, ri: {}, wi: {}",
+                            start,
+                            end,
+                            size,
+                            real_length_tuple.1,
+                            packet_buf.get_reader_index(),
+                            packet_buf.get_writer_index()
+                        );
                         bot.kicked = true;
                         break;
                     }
 
                     // Decompress
-                    match decompress_packet(real_length,
-                        &packet_buf.buffer[start..end], compression, decompression_buf) {
+                    match decompress_packet(
+                        real_length,
+                        &packet_buf.buffer[start..end],
+                        compression,
+                        decompression_buf,
+                    ) {
                         Ok(x) => x,
                         Err(err) => {
                             println!("decompression error: {}", err);
                             bot.kicked = true;
                             break;
-                        },
+                        }
                     };
                 }
 
@@ -147,10 +170,13 @@ impl Bot {
         }
         let mut packet = buf;
         if self.compression_threshold > 0 {
-            packet = packet_processors::PacketCompressor::process_write(packet, &self, compression).unwrap();
+            packet = packet_processors::PacketCompressor::process_write(packet, &self, compression)
+                .unwrap();
         }
         packet = packet_processors::PacketFramer::process_write(packet);
-        match self.stream.write_all(&packet.buffer[packet.get_reader_index() as usize..packet.get_writer_index() as usize]) {
+        match self.stream.write_all(
+            &packet.buffer[packet.get_reader_index() as usize..packet.get_writer_index() as usize],
+        ) {
             Ok(_) => {}
             Err(e) => {
                 self.kicked = true;
@@ -160,14 +186,24 @@ impl Bot {
     }
 }
 
-pub fn decompress_packet(real_length: u32, working_buf: &[u8], compression: &mut Compression, compression_buffer: &mut Buf) -> Result<(), Error> {
+pub fn decompress_packet(
+    real_length: u32,
+    working_buf: &[u8],
+    compression: &mut Compression,
+    compression_buffer: &mut Buf,
+) -> Result<(), Error> {
     compression_buffer.ensure_writable(real_length);
     let range = compression_buffer.get_writer_index() as usize..;
 
     //decompress
-    let written = compression.decompressor.zlib_decompress(working_buf, &mut compression_buffer.buffer[range])?;
+    let written = compression
+        .decompressor
+        .zlib_decompress(working_buf, &mut compression_buffer.buffer[range])?;
     if written != real_length as usize {
-        panic!("written != real_length, written: {}, real_length: {}", written, real_length)
+        panic!(
+            "written != real_length, written: {}, real_length: {}",
+            written, real_length
+        )
     }
     compression_buffer.set_writer_index(real_length);
 
