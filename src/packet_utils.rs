@@ -1,7 +1,7 @@
-use std::intrinsics::copy_nonoverlapping;
-use std::{mem, io};
 use std::convert::TryInto;
+use std::intrinsics::copy_nonoverlapping;
 use std::io::Write;
+use std::{io, mem};
 
 pub struct Buf {
     pub buffer: Vec<u8>,
@@ -13,30 +13,60 @@ pub struct Buf {
 
 impl Buf {
     pub fn new() -> Buf {
-        Buf { buffer: Vec::new(), write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+        Buf {
+            buffer: Vec::new(),
+            write_index: 0,
+            read_index: 0,
+            write_mark: 0,
+            read_mark: 0,
+        }
     }
     pub fn with_length(length: u32) -> Buf {
-        Buf { buffer: vec![0u8; length as usize], write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+        Buf {
+            buffer: vec![0u8; length as usize],
+            write_index: 0,
+            read_index: 0,
+            write_mark: 0,
+            read_mark: 0,
+        }
     }
     pub fn with_capacity(capacity: u32) -> Buf {
-        Buf { buffer: Vec::with_capacity(capacity as usize), write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+        Buf {
+            buffer: Vec::with_capacity(capacity as usize),
+            write_index: 0,
+            read_index: 0,
+            write_mark: 0,
+            read_mark: 0,
+        }
     }
-    pub fn from_vec(vec : Vec<u8>) -> Buf {
-        Buf { buffer: vec, write_index: 0, read_index: 0, write_mark: 0, read_mark: 0 }
+    pub fn from_vec(vec: Vec<u8>) -> Buf {
+        Buf {
+            buffer: vec,
+            write_index: 0,
+            read_index: 0,
+            write_mark: 0,
+            read_mark: 0,
+        }
     }
 
     pub fn is_nonoverlapping<T>(src: *const T, dst: *const T, count: usize) -> bool {
         let src_usize = src as usize;
         let dst_usize = dst as usize;
         let size = mem::size_of::<T>().checked_mul(count).unwrap();
-        let diff = if src_usize > dst_usize { src_usize - dst_usize } else { dst_usize - src_usize };
+        let diff = if src_usize > dst_usize {
+            src_usize - dst_usize
+        } else {
+            dst_usize - src_usize
+        };
         // If the absolute distance between the ptrs is at least as big as the size of the buffer,
         // they do not overlap.
         diff >= size
     }
 
     pub fn write_bytes(&mut self, other: &[u8]) {
-        unsafe { self.mem_cpy(other.as_ptr(), 0, other.len()); }
+        unsafe {
+            self.mem_cpy(other.as_ptr(), 0, other.len());
+        }
     }
 
     pub unsafe fn mem_cpy(&mut self, other: *const u8, start: u32, len: usize) {
@@ -45,7 +75,9 @@ impl Buf {
 
         let extra_len = needed_len - dst.len() as i32;
 
-        if extra_len > 0 { dst.reserve(extra_len as usize); }
+        if extra_len > 0 {
+            dst.reserve(extra_len as usize);
+        }
         let dst_ptr = dst.as_mut_ptr().offset(self.write_index as isize);
         let src_ptr = other.offset(start as isize);
         if Self::is_nonoverlapping(src_ptr, dst_ptr, len - start as usize) {
@@ -54,11 +86,13 @@ impl Buf {
             panic!("copy is overlapping")
         }
 
-        if extra_len > 0 { dst.set_len(needed_len as usize); }
+        if extra_len > 0 {
+            dst.set_len(needed_len as usize);
+        }
         self.advance_writer(len as u32);
     }
 
-    pub fn append(&mut self, other: &Buf, len : usize) {
+    pub fn append(&mut self, other: &Buf, len: usize) {
         self.write_bytes(&other.buffer[0..len]);
     }
 
@@ -67,7 +101,9 @@ impl Buf {
             let new_bytes = self.write_index + num - self.buffer.len() as u32;
 
             self.buffer.reserve(new_bytes as usize);
-            unsafe { self.buffer.set_len((self.write_index + num) as usize); }
+            unsafe {
+                self.buffer.set_len((self.write_index + num) as usize);
+            }
 
             //self.buffer.extend(vec![0; new_bytes as usize]); // safe alt for debugging
         }
@@ -165,9 +201,11 @@ impl Buf {
     }
 
     pub fn write_block_position(&mut self, x: i32, y: i32, z: i32) {
-        self.write_u64((x as u64 & 0x3FFFFFF) << 38 | (z as u64 & 0x3FFFFFF) << 12 | y as u64 & 0xFFF);
+        self.write_u64(
+            (x as u64 & 0x3FFFFFF) << 38 | (z as u64 & 0x3FFFFFF) << 12 | y as u64 & 0xFFF,
+        );
     }
-    
+
     pub fn write_packet_id(&mut self, num: u32) {
         self.write_var_u32(num);
     }
@@ -188,28 +226,28 @@ impl Buf {
 
     pub fn read_u16(&mut self) -> u16 {
         let index = self.read_index as usize;
-        let num: [u8;2] = self.buffer[index..index+2].try_into().unwrap();
+        let num: [u8; 2] = self.buffer[index..index + 2].try_into().unwrap();
         self.advance_reader(2);
         unsafe { u16::from_be(mem::transmute_copy(&num)) }
     }
 
     pub fn read_u32(&mut self) -> u32 {
         let index = self.read_index as usize;
-        let num: [u8;4] = self.buffer[index..index+4].try_into().unwrap();
+        let num: [u8; 4] = self.buffer[index..index + 4].try_into().unwrap();
         self.advance_reader(4);
         unsafe { u32::from_be(mem::transmute_copy(&num)) }
     }
 
     pub fn read_u64(&mut self) -> u64 {
         let index = self.read_index as usize;
-        let num: [u8;8] = self.buffer[index..index+8].try_into().unwrap();
+        let num: [u8; 8] = self.buffer[index..index + 8].try_into().unwrap();
         self.advance_reader(8);
         unsafe { u64::from_be(mem::transmute_copy(&num)) }
     }
 
     pub fn read_u128(&mut self) -> u128 {
         let index = self.read_index as usize;
-        let num: [u8;16] = self.buffer[index..index+16].try_into().unwrap();
+        let num: [u8; 16] = self.buffer[index..index + 16].try_into().unwrap();
         self.advance_reader(16);
         unsafe { u128::from_be(mem::transmute_copy(&num)) }
     }
@@ -222,8 +260,8 @@ impl Buf {
         f64::from_bits(self.read_u64())
     }
 
-    pub fn read_bytes(&mut self, length : u32) -> &[u8] {
-        let range = self.read_index as usize..(self.read_index+length) as usize;
+    pub fn read_bytes(&mut self, length: u32) -> &[u8] {
+        let range = self.read_index as usize..(self.read_index + length) as usize;
         self.advance_reader(length);
         &self.buffer[range]
     }
@@ -290,7 +328,7 @@ impl Buf {
         let x = (value >> 38) as i32;
         let z = (value >> 12) as i32;
         let y = (value & 0xFFF) as u8;
-        (x,y,z)
+        (x, y, z)
     }
 
     pub fn mark_reader(&mut self) {
@@ -311,12 +349,12 @@ impl Buf {
         self.advance_writer(0);
     }
 
-    pub fn set_reader_index(&mut self, index : u32) {
+    pub fn set_reader_index(&mut self, index: u32) {
         self.read_index = index;
         self.advance_reader(0);
     }
 
-    pub fn set_writer_index(&mut self, index : u32) {
+    pub fn set_writer_index(&mut self, index: u32) {
         self.write_index = index;
         self.advance_writer(0);
     }
@@ -329,7 +367,7 @@ impl Buf {
         self.write_index
     }
 
-    pub fn get_var_u32_size(num : u32) -> u32 {
+    pub fn get_var_u32_size(num: u32) -> u32 {
         if num & 0xFFFFFF80 == 0 {
             1
         } else if num & 0xFFFFC000 == 0 {

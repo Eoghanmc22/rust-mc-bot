@@ -1,28 +1,28 @@
-mod packet_utils;
-mod packet_processors;
 mod net;
+mod packet_processors;
+mod packet_utils;
 mod states;
 
-use std::{net::ToSocketAddrs, env};
-use std::io;
-use mio::{Poll, Events, Token, Interest, event, Registry};
-use std::net::SocketAddr;
+use crate::packet_utils::Buf;
+use crate::states::login;
+use libdeflater::{CompressionLvl, Compressor, Decompressor};
+use mio::net::TcpStream;
+use mio::{event, Events, Interest, Poll, Registry, Token};
+use rand::prelude::*;
 use states::play;
 use std::collections::HashMap;
-use mio::net::TcpStream;
-use crate::states::login;
-use crate::packet_utils::Buf;
-use std::time::{Duration, Instant};
+use std::io;
 use std::io::{Read, Write};
-use libdeflater::{CompressionLvl, Compressor, Decompressor};
-use rand::prelude::*;
+use std::net::SocketAddr;
+use std::time::{Duration, Instant};
+use std::{env, net::ToSocketAddrs};
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
 
 const SHOULD_MOVE: bool = true;
 
-const PROTOCOL_VERSION: u32 = 760;
+const PROTOCOL_VERSION: u32 = 761;
 
 #[cfg(unix)]
 const UDS_PREFIX: &str = "unix://";
@@ -54,15 +54,24 @@ fn main() -> io::Result<()> {
 
     #[cfg(unix)]
     if arg1.starts_with(UDS_PREFIX) {
-        addrs = Some(Address::UNIX(PathBuf::from(arg1[UDS_PREFIX.len()..].to_owned())));
+        addrs = Some(Address::UNIX(PathBuf::from(
+            arg1[UDS_PREFIX.len()..].to_owned(),
+        )));
     }
 
     if addrs.is_none() {
         let mut parts = arg1.split(":");
         let ip = parts.next().expect("no ip provided");
-        let port = parts.next().map(|port_string| port_string.parse().expect("invalid port")).unwrap_or(25565u16);
+        let port = parts
+            .next()
+            .map(|port_string| port_string.parse().expect("invalid port"))
+            .unwrap_or(25565u16);
 
-        let server = (ip, port).to_socket_addrs().expect("Not a socket address").next().expect("No socket address found");
+        let server = (ip, port)
+            .to_socket_addrs()
+            .expect("Not a socket address")
+            .next()
+            .expect("No socket address found");
 
         addrs = Some(Address::TCP(server));
     }
@@ -73,14 +82,14 @@ fn main() -> io::Result<()> {
     let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
     let mut cpus = 1.max(num_cpus::get()) as u32;
 
-    if let Option::Some(str) = arg3 {
+    if let Some(str) = arg3 {
         cpus = str.parse().expect(&format!("{} is not a number", arg2));
     }
 
     println!("cpus: {}", cpus);
 
-    let count_per_thread = count/cpus;
-    let mut extra = count%cpus;
+    let count_per_thread = count / cpus;
+    let mut extra = count % cpus;
     let mut names_used = 0;
 
     if count > 0 {
@@ -94,7 +103,9 @@ fn main() -> io::Result<()> {
             }
 
             let addrs = addrs.clone();
-            threads.push(std::thread::spawn(move || { start_bots(count, addrs, names_used, cpus) }));
+            threads.push(std::thread::spawn(move || {
+                start_bots(count, addrs, names_used, cpus)
+            }));
 
             names_used += count;
         }
@@ -112,23 +123,23 @@ pub struct Compression {
 }
 
 pub struct Bot {
-    pub token : Token,
-    pub stream : Stream,
-    pub name : String,
-    pub id : u32,
-    pub entity_id : u32,
+    pub token: Token,
+    pub stream: Stream,
+    pub name: String,
+    pub id: u32,
+    pub entity_id: u32,
     pub compression_threshold: i32,
     pub state: u8,
-    pub kicked : bool,
-    pub teleported : bool,
-    pub x : f64,
-    pub y : f64,
-    pub z : f64,
-    pub buffering_buf : Buf,
-    pub joined : bool
+    pub kicked: bool,
+    pub teleported: bool,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub buffering_buf: Buf,
+    pub joined: bool,
 }
 
-pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
+pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
     if count == 0 {
         return;
     }
@@ -155,13 +166,16 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
         println!("bot \"{}\" joined", bot.name);
     }
 
-    let bots_per_tick = (1.0/cpus as f64).ceil() as u32;
+    let bots_per_tick = (1.0 / cpus as f64).ceil() as u32;
     let mut bots_joined = 0;
 
     let mut packet_buf = Buf::with_length(2000);
     let mut uncompressed_buf = Buf::with_length(2000);
 
-    let mut compression = Compression { compressor: Compressor::new(CompressionLvl::default()), decompressor: Decompressor::new() };
+    let mut compression = Compression {
+        compressor: Compressor::new(CompressionLvl::default()),
+        decompressor: Decompressor::new(),
+    };
 
     let dur = Duration::from_millis(50);
 
@@ -177,8 +191,29 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                 let token = Token(bot as usize);
                 let name = "Bot_".to_owned() + &(name_offset + bot).to_string();
 
-                let mut bot = Bot { token, stream : addrs.connect(), name, id: bot, entity_id: 0, compression_threshold: 0, state: 0, kicked: false, teleported: false, x: 0.0, y: 0.0, z: 0.0, buffering_buf: Buf::with_length(200), joined : false };
-                registry.register(&mut bot.stream, bot.token, Interest::READABLE | Interest::WRITABLE).expect("could not register");
+                let mut bot = Bot {
+                    token,
+                    stream: addrs.connect(),
+                    name,
+                    id: bot,
+                    entity_id: 0,
+                    compression_threshold: 0,
+                    state: 0,
+                    kicked: false,
+                    teleported: false,
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    buffering_buf: Buf::with_length(200),
+                    joined: false,
+                };
+                registry
+                    .register(
+                        &mut bot.stream,
+                        bot.token,
+                        Interest::READABLE | Interest::WRITABLE,
+                    )
+                    .expect("could not register");
 
                 map.insert(token, bot);
 
@@ -193,7 +228,12 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
                     start_bot(bot, &mut compression);
                 }
                 if event.is_readable() && bot.joined {
-                    net::process_packet(bot, &mut packet_buf, &mut uncompressed_buf, &mut compression);
+                    net::process_packet(
+                        bot,
+                        &mut packet_buf,
+                        &mut uncompressed_buf,
+                        &mut compression,
+                    );
                     if bot.kicked {
                         println!("{} disconnected", bot.name);
                         let token = bot.token;
@@ -216,35 +256,59 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
 
         for bot in map.values_mut() {
             if SHOULD_MOVE && bot.teleported {
-                bot.x += rand::random::<f64>()*1.0-0.5;
-                bot.z += rand::random::<f64>()*1.0-0.5;
+                bot.x += rand::random::<f64>() * 1.0 - 0.5;
+                bot.z += rand::random::<f64>() * 1.0 - 0.5;
                 bot.send_packet(play::write_current_pos(bot), &mut compression);
 
                 if (tick_counter + bot.id) % action_tick == 0 {
                     match rand::thread_rng().gen_range(0..=4u8) {
                         0 => {
                             // Send chat
-                            bot.send_packet(play::write_chat_message(MESSAGES.choose(&mut rand::thread_rng()).unwrap()), &mut compression);
+                            bot.send_packet(
+                                play::write_chat_message(
+                                    MESSAGES.choose(&mut rand::thread_rng()).unwrap(),
+                                ),
+                                &mut compression,
+                            );
                         }
                         1 => {
                             // Punch animation
-                            bot.send_packet(play::write_animation(rand::random()), &mut compression);
+                            bot.send_packet(
+                                play::write_animation(rand::random()),
+                                &mut compression,
+                            );
                         }
                         2 => {
                             // Sneak
-                            bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 1 } else { 0 }, 0), &mut compression);
+                            bot.send_packet(
+                                play::write_entity_action(
+                                    bot.entity_id,
+                                    if rand::random() { 1 } else { 0 },
+                                    0,
+                                ),
+                                &mut compression,
+                            );
                         }
                         3 => {
                             // Sprint
-                            bot.send_packet(play::write_entity_action(bot.entity_id, if rand::random() { 3 } else { 4 }, 0), &mut compression);
+                            bot.send_packet(
+                                play::write_entity_action(
+                                    bot.entity_id,
+                                    if rand::random() { 3 } else { 4 },
+                                    0,
+                                ),
+                                &mut compression,
+                            );
                         }
                         4 => {
                             // Held item
-                            bot.send_packet(play::write_held_slot(rand::thread_rng().gen_range(0..9)), &mut compression);
+                            bot.send_packet(
+                                play::write_held_slot(rand::thread_rng().gen_range(0..9)),
+                                &mut compression,
+                            );
                         }
                         _ => {}
                     }
-
                 }
             }
 
@@ -265,7 +329,7 @@ pub fn start_bots(count : u32, addrs : Address, name_offset : u32, cpus: u32) {
 pub enum Address {
     #[cfg(unix)]
     UNIX(PathBuf),
-    TCP(SocketAddr)
+    TCP(SocketAddr),
 }
 
 impl Address {
@@ -275,9 +339,9 @@ impl Address {
             Address::UNIX(path) => {
                 Stream::UNIX(UnixStream::connect(path).expect("Could not connect to the server"))
             }
-            Address::TCP(address) => {
-                Stream::TCP(TcpStream::connect(address.to_owned()).expect("Could not connect to the server"))
-            }
+            Address::TCP(address) => Stream::TCP(
+                TcpStream::connect(address.to_owned()).expect("Could not connect to the server"),
+            ),
         }
     }
 }
@@ -285,7 +349,7 @@ impl Address {
 pub enum Stream {
     #[cfg(unix)]
     UNIX(UnixStream),
-    TCP(TcpStream)
+    TCP(TcpStream),
 }
 
 impl Stream {
@@ -303,12 +367,8 @@ impl Read for Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
             #[cfg(unix)]
-            Stream::UNIX(s) => {
-                s.read(buf)
-            }
-            Stream::TCP(s) => {
-                s.read(buf)
-            }
+            Stream::UNIX(s) => s.read(buf),
+            Stream::TCP(s) => s.read(buf),
         }
     }
 }
@@ -317,62 +377,52 @@ impl Write for Stream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             #[cfg(unix)]
-            Stream::UNIX(s) => {
-                s.write(buf)
-            }
-            Stream::TCP(s) => {
-                s.write(buf)
-            }
+            Stream::UNIX(s) => s.write(buf),
+            Stream::TCP(s) => s.write(buf),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         match self {
             #[cfg(unix)]
-            Stream::UNIX(s) => {
-                s.flush()
-            }
-            Stream::TCP(s) => {
-                s.flush()
-            }
+            Stream::UNIX(s) => s.flush(),
+            Stream::TCP(s) => s.flush(),
         }
     }
 }
 
 impl event::Source for Stream {
-    fn register(&mut self, registry: &Registry, token: Token, interests: Interest) -> io::Result<()> {
+    fn register(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> io::Result<()> {
         match self {
             #[cfg(unix)]
-            Stream::UNIX(s) => {
-                s.register(registry, token, interests)
-            }
-            Stream::TCP(s) => {
-                s.register(registry, token, interests)
-            }
+            Stream::UNIX(s) => s.register(registry, token, interests),
+            Stream::TCP(s) => s.register(registry, token, interests),
         }
     }
 
-    fn reregister(&mut self, registry: &Registry, token: Token, interests: Interest) -> io::Result<()> {
+    fn reregister(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> io::Result<()> {
         match self {
             #[cfg(unix)]
-            Stream::UNIX(s) => {
-                s.reregister(registry, token, interests)
-            }
-            Stream::TCP(s) => {
-                s.reregister(registry, token, interests)
-            }
+            Stream::UNIX(s) => s.reregister(registry, token, interests),
+            Stream::TCP(s) => s.reregister(registry, token, interests),
         }
     }
 
     fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
         match self {
             #[cfg(unix)]
-            Stream::UNIX(s) => {
-                s.deregister(registry)
-            }
-            Stream::TCP(s) => {
-                s.deregister(registry)
-            }
+            Stream::UNIX(s) => s.deregister(registry),
+            Stream::TCP(s) => s.deregister(registry),
         }
     }
 }
