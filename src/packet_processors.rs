@@ -29,10 +29,10 @@ pub fn lookup_packet(state: u8, packet: u8) -> Option<Packet> {
         // play
         2 => {
             match packet {
-                0x1F => return Some(play::process_keep_alive_packet), // KEEP_ALIVE
-                0x24 => return Some(play::process_join_game),         // JOIN_GAME
-                0x17 => return Some(play::process_kick),              // DISCONNECT
-                0x38 => return Some(play::process_teleport),          // PLAYER_POSITION_AND_LOOK
+                0x23 => return Some(play::process_keep_alive_packet), // KEEP_ALIVE
+                0x28 => return Some(play::process_join_game),         // JOIN_GAME
+                0x1A => return Some(play::process_kick),              // DISCONNECT
+                0x3C => return Some(play::process_teleport),          // PLAYER_POSITION_AND_LOOK
                 _ => {}
             }
         }

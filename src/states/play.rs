@@ -71,7 +71,7 @@ pub fn write_animation(off_hand: bool) -> Buf {
 pub fn write_entity_action(entity_id: u32, action_id: u32, jump_boost: u32) -> Buf {
     // ClientEntityActionPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x1D);
+    buf.write_packet_id(0x1E);
 
     buf.write_var_u32(entity_id);
     buf.write_var_u32(action_id);
@@ -103,7 +103,7 @@ pub fn write_tele_confirm(id: u32) -> Buf {
 pub fn write_keep_alive_packet(id: u64) -> Buf {
     // ClientKeepAlivePacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x11);
+    buf.write_packet_id(0x12);
 
     buf.write_u64(id);
 
@@ -117,7 +117,7 @@ pub fn write_current_pos(bot: &Bot) -> Buf {
 pub fn write_pos(x: f64, y: f64, z: f64, yaw: f32, pitch: f32) -> Buf {
     // ClientPlayerPositionAndRotationPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x14);
+    buf.write_packet_id(0x15);
 
     buf.write_f64(x);
     buf.write_f64(y);
@@ -136,7 +136,7 @@ const VIEW_DISTANCE: u8 = 10u8;
 pub fn write_client_settings() -> Buf {
     // ClientSettingsPacket
     let mut buf = Buf::new();
-    buf.write_packet_id(0x07);
+    buf.write_packet_id(0x08);
 
     buf.write_sized_str("en_US");
     buf.write_u8(VIEW_DISTANCE);
