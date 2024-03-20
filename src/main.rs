@@ -16,6 +16,7 @@ use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use std::{env, net::ToSocketAddrs};
+use uuid::Uuid;
 
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
@@ -168,7 +169,8 @@ pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
         let buf = login::write_handshake_packet(PROTOCOL_VERSION, "".to_string(), 0, 2);
         bot.send_packet(buf, compression);
 
-        let buf = login::write_login_start_packet(&bot.name);
+        let uuid: u128 = Uuid::new_v4().as_u128();
+        let buf = login::write_login_start_packet(&bot.name, uuid);
         bot.send_packet(buf, compression);
 
         println!("bot \"{}\" joined", bot.name);

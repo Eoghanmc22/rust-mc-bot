@@ -15,3 +15,5 @@ mio = { version = "0.8", features = ["os-poll", "net"] }
 libdeflater = "1.19"
 num_cpus = "1.16"
 rand = "0.8"
+
+uuid = { version = "1.8", features = ["v4", "fast-rng"] }
