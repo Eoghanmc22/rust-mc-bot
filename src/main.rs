@@ -139,6 +139,7 @@ pub struct Bot {
     pub joined: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ProtocolState {
     Status,
     Login,
