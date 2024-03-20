@@ -22,11 +22,11 @@ pub fn write_handshake_packet(
 }
 
 /// Login Start
-pub fn write_login_start_packet(username: &String, uuid: u128) -> Buf {
+pub fn write_login_start_packet(username: &str, uuid: u128) -> Buf {
     let mut buf = Buf::new();
     buf.write_packet_id(0x00);
 
-    buf.write_sized_str(&username);
+    buf.write_sized_str(username);
     buf.write_u128(uuid);
 
     buf
