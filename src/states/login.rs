@@ -3,7 +3,7 @@ use crate::{Bot, Compression, ProtocolState};
 
 //c2s
 
-// Handshake
+/// Handshake
 pub fn write_handshake_packet(
     protocol_version: u32,
     server_address: String,
@@ -21,7 +21,7 @@ pub fn write_handshake_packet(
     buf
 }
 
-// Login Start
+/// Login Start
 pub fn write_login_start_packet(username: &String) -> Buf {
     let mut buf = Buf::new();
     buf.write_packet_id(0x00);
@@ -32,7 +32,7 @@ pub fn write_login_start_packet(username: &String) -> Buf {
     buf
 }
 
-// Login Acknowledged
+/// Login Acknowledged
 pub fn write_login_acknowledged() -> Buf {
     let mut buf = Buf::new();
     buf.write_packet_id(0x03);
@@ -42,7 +42,7 @@ pub fn write_login_acknowledged() -> Buf {
 
 //s2c
 
-// Login Success
+/// Login Success
 pub fn process_login_success_packet(
     buffer: &mut Buf,
     mut bot: &mut Bot,
@@ -57,7 +57,7 @@ pub fn process_login_success_packet(
     bot.send_packet(write_login_acknowledged(), compression)
 }
 
-// Set Compression
+/// Set Compression
 pub fn process_set_compression_packet(
     buf: &mut Buf,
     mut bot: &mut Bot,
