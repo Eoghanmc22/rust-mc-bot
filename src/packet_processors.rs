@@ -1,8 +1,8 @@
 use libdeflater::Compressor;
 
 use crate::packet_utils::Buf;
-use crate::states::{login, play, status};
-use crate::{Bot, Compression, Error};
+use crate::states::{config, login, play, status};
+use crate::{Bot, Compression, Error, ProtocolState};
 
 pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression);
 
@@ -10,34 +10,39 @@ pub struct PacketFramer {}
 
 pub struct PacketCompressor {}
 
-pub fn lookup_packet(state: u8, packet: u8) -> Option<Packet> {
+pub fn lookup_packet(state: ProtocolState, packet: u8) -> Option<Packet> {
     match state {
-        // login
-        0 => match packet {
+        ProtocolState::Login => match packet {
+            0x00 => return Some(play::process_kick),
             0x02 => return Some(login::process_login_success_packet),
             0x03 => return Some(login::process_set_compression_packet),
             _ => {}
         },
 
-        // status
-        1 => match packet {
+        ProtocolState::Status => match packet {
             0x00 => return Some(status::process_status_response),
             0x01 => return Some(status::process_pong),
             _ => {}
         },
 
-        // play
-        2 => {
+        ProtocolState::Config => match packet {
+            0x01 => return Some(play::process_kick),
+            0x02 => return Some(config::process_finish_configuration),
+            0x03 => return Some(config::process_keep_alive_packet),
+            0x04 => return Some(config::process_ping),
+            0x07 => return Some(config::process_resource_pack),
+            _ => {}
+        },
+
+        ProtocolState::Play => {
             match packet {
-                0x1F => return Some(play::process_keep_alive_packet), // KEEP_ALIVE
-                0x24 => return Some(play::process_join_game),         // JOIN_GAME
-                0x17 => return Some(play::process_kick),              // DISCONNECT
-                0x38 => return Some(play::process_teleport),          // PLAYER_POSITION_AND_LOOK
+                0x24 => return Some(play::process_keep_alive_packet), // KEEP_ALIVE
+                0x29 => return Some(play::process_join_game),         // JOIN_GAME
+                0x1B => return Some(play::process_kick),              // DISCONNECT
+                0x3E => return Some(play::process_teleport),          // PLAYER_POSITION_AND_LOOK
                 _ => {}
             }
         }
-
-        _ => println!("unknown state `{}`", state),
     }
     None
 }

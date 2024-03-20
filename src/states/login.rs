@@ -1,5 +1,5 @@
 use crate::packet_utils::Buf;
-use crate::{Bot, Compression};
+use crate::{Bot, Compression, ProtocolState};
 
 //c2s
 pub fn write_handshake_packet(
@@ -41,7 +41,7 @@ pub fn process_login_success_packet(
     let _name = buffer.read_sized_string();
     let _properties = buffer.read_var_u32();
 
-    bot.state = 2;
+    bot.state = ProtocolState::Config;
 }
 
 //0x03

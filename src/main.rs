@@ -129,7 +129,7 @@ pub struct Bot {
     pub id: u32,
     pub entity_id: u32,
     pub compression_threshold: i32,
-    pub state: u8,
+    pub state: ProtocolState,
     pub kicked: bool,
     pub teleported: bool,
     pub x: f64,
@@ -137,6 +137,13 @@ pub struct Bot {
     pub z: f64,
     pub buffering_buf: Buf,
     pub joined: bool,
+}
+
+pub enum ProtocolState {
+    Status,
+    Login,
+    Config,
+    Play,
 }
 
 pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
@@ -198,7 +205,7 @@ pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
                     id: bot,
                     entity_id: 0,
                     compression_threshold: 0,
-                    state: 0,
+                    state: ProtocolState::Login,
                     kicked: false,
                     teleported: false,
                     x: 0.0,
