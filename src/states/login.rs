@@ -2,13 +2,15 @@ use crate::packet_utils::Buf;
 use crate::{Bot, Compression, ProtocolState};
 
 //c2s
+
+// Handshake
 pub fn write_handshake_packet(
     protocol_version: u32,
     server_address: String,
     server_port: u16,
     next_state: u32,
 ) -> Buf {
-    let mut buf = Buf::with_length((1 + 4 + server_address.len() + 2 + 4) as u32);
+    let mut buf = Buf::new();
     buf.write_packet_id(0x00);
 
     buf.write_var_u32(protocol_version);
@@ -19,8 +21,9 @@ pub fn write_handshake_packet(
     buf
 }
 
+// Login Start
 pub fn write_login_start_packet(username: &String) -> Buf {
-    let mut buf = Buf::with_length(1 + username.len() as u32);
+    let mut buf = Buf::new();
     buf.write_packet_id(0x00);
 
     buf.write_sized_str(&username);
@@ -29,22 +32,32 @@ pub fn write_login_start_packet(username: &String) -> Buf {
     buf
 }
 
+// Login Acknowledged
+pub fn write_login_acknowledged() -> Buf {
+    let mut buf = Buf::new();
+    buf.write_packet_id(0x03);
+
+    buf
+}
+
 //s2c
 
-//0x02
+// Login Success
 pub fn process_login_success_packet(
     buffer: &mut Buf,
     mut bot: &mut Bot,
-    _compression: &mut Compression,
+    compression: &mut Compression,
 ) {
     let _uuid = buffer.read_u128();
     let _name = buffer.read_sized_string();
     let _properties = buffer.read_var_u32();
 
     bot.state = ProtocolState::Config;
+
+    bot.send_packet(write_login_acknowledged(), compression)
 }
 
-//0x03
+// Set Compression
 pub fn process_set_compression_packet(
     buf: &mut Buf,
     mut bot: &mut Bot,
