@@ -21,14 +21,16 @@ use uuid::Uuid;
 #[cfg(unix)]
 use {mio::net::UnixStream, std::path::PathBuf};
 
-const SHOULD_MOVE: bool = true;
+// This rate limits the join rate of the bots
+// Increasing it will cause the bots to join more quickly
+const AVG_JOINS_PER_TICK: f64 = 5.0;
 
-const PROTOCOL_VERSION: u32 = 766;
+const SHOULD_MOVE: bool = true;
+const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
 
 #[cfg(unix)]
 const UDS_PREFIX: &str = "unix://";
-
-const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
+const PROTOCOL_VERSION: u32 = 766;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 
@@ -176,7 +178,8 @@ pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
         println!("bot \"{}\" joined", bot.name);
     }
 
-    let bots_per_tick = (1.0 / cpus as f64).ceil() as u32;
+    let bots_per_tick = AVG_JOINS_PER_TICK / cpus as f64;
+    let mut bots_this_tick = 0.0;
     let mut bots_joined = 0;
 
     let mut packet_buf = Buf::with_length(2000);
@@ -196,8 +199,10 @@ pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
         let ins = Instant::now();
 
         if bots_joined < count {
+            bots_this_tick += bots_per_tick;
+
             let registry = poll.registry();
-            for bot in bots_joined..(bots_per_tick + bots_joined).min(count) {
+            for bot in bots_joined..(bots_this_tick as u32 + bots_joined).min(count) {
                 let token = Token(bot as usize);
                 let name = "Bot_".to_owned() + &(name_offset + bot).to_string();
 
@@ -225,9 +230,12 @@ pub fn start_bots(count: u32, addrs: Address, name_offset: u32, cpus: u32) {
                     )
                     .expect("could not register");
 
+                println!("spawn bot \"{}\" {}/{}", bot.name, bots_joined, count);
+
                 map.insert(token, bot);
 
                 bots_joined += 1;
+                bots_this_tick -= 1.0;
             }
         }
 

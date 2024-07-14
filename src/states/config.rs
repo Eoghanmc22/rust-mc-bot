@@ -45,8 +45,8 @@ pub fn process_transfer(buffer: &mut Buf, bot: &mut Bot, _compression: &mut Comp
     bot.kicked = true;
 }
 
-pub fn process_known_packs(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression) {
-    bot.send_packet(write_known_packets(buffer), compression);
+pub fn process_known_packs(_buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression) {
+    bot.send_packet(write_known_packets(), compression);
 }
 
 pub fn write_cookie_response(identifier: &str) -> Buf {
@@ -101,7 +101,7 @@ pub fn write_acknowledge_resource_pack(id: u128) -> Buf {
     buf
 }
 
-pub fn write_known_packets(request: &mut Buf) -> Buf {
+pub fn write_known_packets() -> Buf {
     let mut buf = Buf::new();
     buf.write_packet_id(0x07);
 
