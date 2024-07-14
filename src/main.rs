@@ -23,7 +23,7 @@ use {mio::net::UnixStream, std::path::PathBuf};
 
 const SHOULD_MOVE: bool = true;
 
-const PROTOCOL_VERSION: u32 = 765;
+const PROTOCOL_VERSION: u32 = 766;
 
 #[cfg(unix)]
 const UDS_PREFIX: &str = "unix://";

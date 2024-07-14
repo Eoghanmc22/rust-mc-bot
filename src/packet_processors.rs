@@ -4,18 +4,21 @@ use crate::packet_utils::Buf;
 use crate::states::{config, login, play, status};
 use crate::{Bot, Compression, Error, ProtocolState};
 
-pub type Packet = fn(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression);
+pub type PacketHandler = fn(buffer: &mut Buf, bot: &mut Bot, compression: &mut Compression);
 
 pub struct PacketFramer {}
 
 pub struct PacketCompressor {}
 
-pub fn lookup_packet(state: ProtocolState, packet: u8) -> Option<Packet> {
+pub fn lookup_packet(state: ProtocolState, packet: u8) -> Option<PacketHandler> {
     match state {
         ProtocolState::Login => match packet {
             0x00 => return Some(play::process_kick),
+            0x01 => return Some(login::process_encryption_request_packet),
             0x02 => return Some(login::process_login_success_packet),
             0x03 => return Some(login::process_set_compression_packet),
+            0x04 => return Some(login::process_plugin_message_request),
+            0x05 => return Some(login::process_cookie_request_packet),
             _ => {}
         },
 
@@ -26,20 +29,25 @@ pub fn lookup_packet(state: ProtocolState, packet: u8) -> Option<Packet> {
         },
 
         ProtocolState::Config => match packet {
-            0x01 => return Some(play::process_kick),
-            0x02 => return Some(config::process_finish_configuration),
-            0x03 => return Some(config::process_keep_alive_packet),
-            0x04 => return Some(config::process_ping),
-            0x07 => return Some(config::process_resource_pack),
+            0x00 => return Some(config::process_cookie_request_packet),
+            0x02 => return Some(play::process_kick),
+            0x03 => return Some(config::process_finish_configuration),
+            0x04 => return Some(config::process_keep_alive_packet),
+            0x05 => return Some(config::process_ping),
+            0x09 => return Some(config::process_resource_pack),
+            0x0B => return Some(config::process_transfer),
+            0x0E => return Some(config::process_known_packs),
             _ => {}
         },
 
         ProtocolState::Play => {
             match packet {
-                0x24 => return Some(play::process_keep_alive_packet), // KEEP_ALIVE
-                0x29 => return Some(play::process_join_game),         // JOIN_GAME
-                0x1B => return Some(play::process_kick),              // DISCONNECT
-                0x3E => return Some(play::process_teleport),          // PLAYER_POSITION_AND_LOOK
+                0x16 => return Some(play::process_cookie_request_packet), // KEEP_ALIVE
+                0x26 => return Some(play::process_keep_alive_packet),     // KEEP_ALIVE
+                0x2B => return Some(play::process_join_game),             // JOIN_GAME
+                0x1D => return Some(play::process_kick),                  // DISCONNECT
+                0x40 => return Some(play::process_teleport), // PLAYER_POSITION_AND_LOOK
+                0x73 => return Some(config::process_transfer),
                 _ => {}
             }
         }
