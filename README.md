@@ -35,6 +35,8 @@ When I was working on the [Minestom Project](https://github.com/Minestom/Minesto
 
 Using `localhost` as the IP on machines with ipv6 may cause the bots to not connect to the server. Please use `127.0.0.1` instead.
 
+Currently, the bots do not support online mode to prevent abuse and to improve performance.
+
 ## Disclaimer
 
 This should **ONLY** be used test your own server. We do not endorse the use of this for any other purposes than testing your own infrastructure.
