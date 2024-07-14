@@ -10,9 +10,9 @@ edition = "2018"
 debug = 2
 
 [dependencies]
-mio = { version = "0.8", features = ["os-poll", "net"] }
+mio = { version = "1.0", features = ["os-poll", "net"] }
 # flate2 = { version = "1.0.19", features = ["zlib"], default-features = false }
-libdeflater = "1.19"
+libdeflater = "1.20"
 num_cpus = "1.16"
 rand = "0.8"
 
