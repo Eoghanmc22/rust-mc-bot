@@ -170,7 +170,7 @@ impl Bot {
         }
         let mut packet = buf;
         if self.compression_threshold > 0 {
-            packet = packet_processors::PacketCompressor::process_write(packet, &self, compression)
+            packet = packet_processors::PacketCompressor::process_write(packet, self, compression)
                 .unwrap();
         }
         packet = packet_processors::PacketFramer::process_write(packet);

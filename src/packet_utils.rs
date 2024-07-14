@@ -217,11 +217,7 @@ impl Buf {
     }
 
     pub fn read_bool(&mut self) -> bool {
-        if self.read_byte() == 1 {
-            true
-        } else {
-            false
-        }
+        self.read_byte() == 1
     }
 
     pub fn read_u16(&mut self) -> u16 {
@@ -390,9 +386,15 @@ impl Buf {
 
     pub fn advance_reader(&mut self, distance: u32) {
         self.read_index += distance;
-        if self.read_index > self.write_index as u32 {
+        if self.read_index > self.write_index {
             panic!("read index exceeded write index")
         }
+    }
+}
+
+impl Default for Buf {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

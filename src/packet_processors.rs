@@ -68,12 +68,12 @@ pub fn process_decode(
 impl PacketFramer {
     pub fn process_write(buffer: Buf) -> Buf {
         let size = buffer.get_writer_index();
-        let header_size = Buf::get_var_u32_size(size as u32);
+        let header_size = Buf::get_var_u32_size(size);
         if header_size > 3 {
             panic!("header_size > 3")
         }
-        let mut target = Buf::with_length(size as u32 + header_size);
-        target.write_var_u32(size as u32);
+        let mut target = Buf::with_length(size + header_size);
+        target.write_var_u32(size);
         target.append(&buffer, buffer.get_writer_index() as usize);
         target
     }
@@ -81,13 +81,13 @@ impl PacketFramer {
 
 impl PacketCompressor {
     pub fn process_write(
-        mut buffer: Buf,
+        buffer: Buf,
         bot: &Bot,
         compression: &mut Compression,
     ) -> Result<Buf, Error> {
         if buffer.get_writer_index() as i32 > bot.compression_threshold {
             let mut buf = Buf::new();
-            compress_packet(&mut buffer, &mut compression.compressor, &mut buf)?;
+            compress_packet(&buffer, &mut compression.compressor, &mut buf)?;
             Ok(buf)
         } else {
             let mut buf = Buf::new();

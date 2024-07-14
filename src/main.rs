@@ -56,14 +56,12 @@ fn main() -> io::Result<()> {
     let mut addrs = None;
 
     #[cfg(unix)]
-    if arg1.starts_with(UDS_PREFIX) {
-        addrs = Some(Address::UNIX(PathBuf::from(
-            arg1[UDS_PREFIX.len()..].to_owned(),
-        )));
+    if let Some(unix_socket) = arg1.strip_prefix(UDS_PREFIX) {
+        addrs = Some(Address::UNIX(PathBuf::from(unix_socket.to_owned())));
     }
 
     if addrs.is_none() {
-        let mut parts = arg1.split(":");
+        let mut parts = arg1.split(':');
         let ip = parts.next().expect("no ip provided");
         let port = parts
             .next()
@@ -82,11 +80,15 @@ fn main() -> io::Result<()> {
     // Cant be none because it would have panicked earlier
     let addrs = addrs.unwrap();
 
-    let count: u32 = arg2.parse().expect(&format!("{} is not a number", arg2));
+    let count: u32 = arg2
+        .parse()
+        .unwrap_or_else(|_| panic!("{} is not a number", arg2));
     let mut cpus = 1.max(num_cpus::get()) as u32;
 
     if let Some(str) = arg3 {
-        cpus = str.parse().expect(&format!("{} is not a number", arg2));
+        cpus = str
+            .parse()
+            .unwrap_or_else(|_| panic!("{} is not a number", arg2));
     }
 
     println!("cpus: {}", cpus);
