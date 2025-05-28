@@ -30,7 +30,7 @@ const MESSAGES: &[&str] = &["This is a chat message!", "Wow", "Server = on?"];
 
 #[cfg(unix)]
 const UDS_PREFIX: &str = "unix://";
-const PROTOCOL_VERSION: u32 = 767;
+const PROTOCOL_VERSION: u32 = 770;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 

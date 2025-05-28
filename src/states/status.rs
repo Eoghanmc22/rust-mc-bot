@@ -2,12 +2,14 @@ use crate::packet_utils::Buf;
 use crate::{Bot, Compression};
 
 /// Status Response
+/// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Status_Response
 pub fn process_status_response(buffer: &mut Buf, _bot: &mut Bot, _compression: &mut Compression) {
     let server_response = buffer.read_sized_string();
     println!("got response {}", server_response)
 }
 
 /// Ping Response (status)
+/// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Pong_Response_(status)
 pub fn process_pong(buffer: &mut Buf, _bot: &mut Bot, _compression: &mut Compression) {
     let payload = buffer.read_sized_string();
     println!("got pong {}", payload)
